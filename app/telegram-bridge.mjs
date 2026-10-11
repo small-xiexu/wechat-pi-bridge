@@ -38,7 +38,10 @@ const tgBindings = {
     'telegram-pi': {
       channel: 'telegram',
       pi_workdir: `${BRIDGE_HOME}/sandbox/pi-work-tg`,
+      pi_model: 'sub2api/gpt-6.1-sol',
       pi_timeout_ms: 600_000,
+      pi_session_dir: process.env.WB_PI_SESSION_DIR || '/var/lib/wechat-pi-bridge/pi-home/sessions',
+      media_roots: [`${BRIDGE_HOME}/state/telegram-media`],
     },
   },
   debounce_ms: tg.debounce_ms || 2500,

@@ -6,7 +6,7 @@
 import { spawn } from 'node:child_process';
 import { TelegramApi } from './telegram.mjs';
 
-const DEFAULT_WXBOT_BIN = '/home/hatch/workspace/wechat-bridge/vendor/wx-bot/wx-bot';
+const DEFAULT_WXBOT_BIN = process.env.WB_WXBOT_BIN || `${process.env.WB_HOME || '/home/hatch/workspace/wechat-pi-bridge'}/vendor/wx-bot/wx-bot`;
 
 // stderr markers -> classification. Conservative: unknown errors are retried.
 const NO_RETRY_PATTERNS = [

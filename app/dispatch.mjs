@@ -5,16 +5,19 @@
 import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync, realpathSync } from 'node:fs';
 import { openDb, dueBatches, claimBatch, batchTexts, setBatchStatus,
   createDeliveryParts, dueDeliveryParts, setPartStatus, maybeCompleteTarget, audit, nowIso } from './db.mjs';
 import { addToBatch } from './debounce.mjs';
-import { runPi } from './pi-runner.mjs';
+import { runPi, isAllowedMediaPath } from './pi-runner.mjs';
 import { sendText, sendTelegramText, backoffMs } from './outbox.mjs';
 import { markdownToPlain, formatBatchForPi } from './normalize.mjs';
 import { loadBindingsConfig } from './auth.mjs';
+import { markWxAuthInvalid, markWxAuthValid, shouldNotify } from './wx-auth-state.mjs';
+import { notifyWxAuthInvalid } from './wechat-auth-alert.mjs';
 
 const BRIDGE_HOME = process.env.WB_HOME || '/home/hatch/workspace/wechat-bridge';
+const AUTH_STATE_HOME = process.env.WB_HOME || BRIDGE_HOME;
 const DISPATCH_OWNER = `dispatch-${process.pid}`;
 
 function fencing() { return randomBytes(16).toString('hex'); }
@@ -36,7 +39,7 @@ async function sendPiMedia(cfg, batch, mediaPath, drySend) {
   if (drySend) { console.log(`[drySend] would send media ${mediaPath}`); return; }
   const { spawn } = await import('node:child_process');
   const wxbotConfig = cfg?.wxbot_config?.startsWith('/') ? cfg.wxbot_config : `${BRIDGE_HOME}/${cfg?.wxbot_config || 'config/wx-bot-pi.json'}`;
-  const wxbotBin = `${BRIDGE_HOME}/vendor/wx-bot/wx-bot`;
+  const wxbotBin = process.env.WB_WXBOT_BIN || `${BRIDGE_HOME}/vendor/wx-bot/wx-bot`;
   const to = batch.conversation_id;
   const flag = '--image';
   return new Promise((resolve, reject) => {
@@ -139,16 +142,25 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
       const input = formatBatchForPi(msgs, b.binding, ch0 === 'telegram' ? 'Telegram' : '微信', { imageModel: cfg?.image_model || null });
       const workdir = cfg?.pi_workdir || `${BRIDGE_HOME}/sandbox/pi-work`;
       const beforeImgs = listOutboundMedia(workdir);
+      const mediaRoots = [
+        ...(Array.isArray(cfg?.media_roots) ? cfg.media_roots : []),
+        `${BRIDGE_HOME}/state/wx-pi/media`,
+        `${BRIDGE_HOME}/state/telegram-media`,
+        workdir,
+      ];
       const images = msgs.flatMap(m => [
         ...(Array.isArray(m.media_files) ? m.media_files : []),
         m.media_file_id,
-      ]).filter(p => p && typeof p === 'string' && p.startsWith('/'));
-      // dedupe
+      ]).filter(p => isAllowedMediaPath(p, mediaRoots));
+      // dedupe; reject rather than pass arbitrary absolute paths to Pi.
       const seen = new Set(); const uniqImages = images.filter(p => !seen.has(p) && seen.add(p));
       const r = await runPi(input, {
+        piBin: cfg?.pi_bin || undefined,
+        model: cfg?.pi_model || 'sub2api/gpt-6.1-sol',
         workdir,
         timeoutMs: cfg?.pi_timeout_ms || 600_000,
         sessionId: sessionIdFor(b.binding, b.authorized_principal),
+        sessionDir: cfg?.pi_session_dir || undefined,
         images: uniqImages,
       });
       if (!r.ok) throw new Error(`pi failed code=${r.code} signal=${r.signal} timedOut=${r.timedOut} stderr=${r.stderr.slice(0, 300)}`);
@@ -246,10 +258,59 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
       s = await sendText(sendCfg);
     }
     if (s.ok) {
+      if (ch !== 'telegram') {
+        const source = `binding=${p.binding}; outbound=delivery_part:${p.id}`;
+        markWxAuthValid({
+          bridgeHome: AUTH_STATE_HOME,
+          source,
+          audit: ({ eventType, details }) => audit(db, {
+            binding: p.binding,
+            eventType,
+            entityType: 'delivery_parts',
+            entityId: p.id,
+            details,
+          }),
+        });
+      }
       setPartStatus(db, p.id, 'sent', { fencingToken: token });
       maybeCompleteTarget(db, p.id);
       results.parts.push({ id: p.id, status: 'sent' });
     } else if (!s.retry) {
+      if (ch !== 'telegram' && s.kind === 'auth_invalid') {
+        const source = `binding=${p.binding}; outbound=delivery_part:${p.id}`;
+        markWxAuthInvalid({
+          bridgeHome: AUTH_STATE_HOME,
+          source,
+          reason: 'errcode=-14',
+          audit: ({ eventType, details }) => audit(db, {
+            binding: p.binding,
+            eventType,
+            entityType: 'delivery_parts',
+            entityId: p.id,
+            details,
+          }),
+        });
+        // Keep this event separate from the state-transition audit: repeated
+        // -14s are useful evidence even while the state remains invalid.
+        audit(db, {
+          binding: p.binding,
+          eventType: 'wechat.auth_invalid',
+          entityType: 'delivery_parts',
+          entityId: p.id,
+          details: { source, kind: s.kind, retry: false },
+        });
+        if (shouldNotify({ bridgeHome: AUTH_STATE_HOME })) {
+          const alert = await notifyWxAuthInvalid({
+            telegramConfig: telegramCfg,
+            telegramConfigPath: process.env.WB_TG_CONFIG || `${AUTH_STATE_HOME}/config/telegram.json`,
+            reason: 'errcode=-14',
+            source,
+          });
+          if (!alert.ok) {
+            console.error(`[dispatch] WeChat auth alert failed: ${alert.error || alert.kind || 'unknown error'}`);
+          }
+        }
+      }
       setPartStatus(db, p.id, 'dead', { fencingToken: token, error: `${s.kind}: ${s.stderr.slice(0, 200)}` });
       maybeCompleteTarget(db, p.id);
       results.parts.push({ id: p.id, status: 'dead', kind: s.kind });

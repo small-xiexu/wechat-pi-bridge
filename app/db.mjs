@@ -6,6 +6,14 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { loadDbKey, encryptText, decryptText, isEncrypted } from './crypto.mjs';
+
+const dbKeys = new WeakMap();
+function dbKey(db) {
+  const key = dbKeys.get(db);
+  if (!key) throw new Error('database encryption key unavailable');
+  return key;
+}
 
 export const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -247,7 +255,12 @@ export function nowIso() {
 
 export function openDb(dbPath) {
   mkdirSync(dirname(dbPath), { recursive: true, mode: 0o700 });
+  const key = loadDbKey({
+    keyFile: process.env.WB_DB_KEY_FILE || `${dirname(dbPath)}/.db-key`,
+    bridgeHome: process.env.WB_HOME,
+  });
   const db = new DatabaseSync(dbPath);
+  dbKeys.set(db, key);
   try { chmodSync(dbPath, 0o600); } catch { /* ignore */ }
   db.exec(SCHEMA);
   // Migration: add media_files_json to existing inbox_events tables
@@ -257,6 +270,15 @@ export function openDb(dbPath) {
       db.exec("ALTER TABLE inbox_events ADD COLUMN media_files_json TEXT");
     }
   } catch { /* ignore */ }
+  // Migrate old plaintext bodies before the handle is returned. A failure is
+  // fatal: silently continuing would leave privacy-sensitive rows in plaintext.
+  for (const table of ['inbox_events', 'delivery_parts']) {
+    const rows = db.prepare(`SELECT rowid AS rowid, text FROM ${table} WHERE text IS NOT NULL AND text NOT LIKE 'enc:v1:%'`).all();
+    for (const row of rows) {
+      db.prepare(`UPDATE ${table} SET text = ? WHERE rowid = ?`).run(encryptText(row.text, key), row.rowid);
+    }
+  }
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best effort; rows are already encrypted */ }
   return db;
 }
 
@@ -289,7 +311,7 @@ export function insertInboxEvent(db, evt) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
     .run(evt.binding, evt.upstream_event_id, evt.message_id, evt.payload_hash,
       evt.conversation_id, evt.sender_id, evt.recipient_id, evt.chat_kind,
-      evt.kind, evt.text, evt.media_file_id || null,
+      evt.kind, encryptText(evt.text || '', dbKey(db)), evt.media_file_id || null,
       JSON.stringify(evt.media_files || []), now, evt.upstream_seq ?? null,
       now, now);
   return { inserted: true, id: Number(r.lastInsertRowid), conflict: false, duplicate: false };
@@ -342,6 +364,7 @@ export function batchTexts(db, batchId) {
     FROM batch_messages m JOIN inbox_events e ON e.id = m.inbox_id
     WHERE m.batch_id = ? ORDER BY m.ordinal ASC`).all(batchId).map(r => ({
       ...r,
+      text: decryptText(r.text, dbKey(db)),
       media_files: (() => { try { return JSON.parse(r.media_files_json || '[]'); } catch { return []; } })(),
     }));
 }
@@ -391,7 +414,7 @@ export function createDeliveryParts(db, { batchId, principal, binding, conversat
     const r = db.prepare(`INSERT INTO delivery_parts
       (target_id, part_no, part_count, part_hash, text, remote_idempotency_key, status, next_attempt_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`)
-      .run(target.id, i + 1, parts.length, hash, p, `${targetKey}:p${i + 1}`, now, now);
+      .run(target.id, i + 1, parts.length, hash, encryptText(p, dbKey(db)), `${targetKey}:p${i + 1}`, now, now);
     rows.push(db.prepare('SELECT * FROM delivery_parts WHERE id = ?').get(Number(r.lastInsertRowid)));
   });
   return rows;
@@ -401,7 +424,8 @@ export function dueDeliveryParts(db, now, limit = 10) {
   return db.prepare(`SELECT p.*, t.binding, t.recipient_id, t.conversation_id, t.channel
     FROM delivery_parts p JOIN delivery_targets t ON t.id = p.target_id
     WHERE p.status = 'pending' AND p.next_attempt_at <= ?
-    ORDER BY p.target_id ASC, p.part_no ASC LIMIT ?`).all(now, limit);
+    ORDER BY p.target_id ASC, p.part_no ASC LIMIT ?`).all(now, limit)
+    .map((row) => ({ ...row, text: decryptText(row.text, dbKey(db)) }));
 }
 
 /** Telegram getUpdates offset persistence (per binding). Dedup by
