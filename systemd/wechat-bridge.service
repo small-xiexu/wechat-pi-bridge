@@ -5,15 +5,15 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Environment=WXBOT_PI_WEBHOOK_KEY=__REDACTED__
+Environment=WXBOT_PI_WEBHOOK_KEY=__REPLACE_WITH_RANDOM_32B_HEX__
 Environment=NO_PROXY=localhost,127.0.0.1,::1,[::1],198.19.0.1,198.19.0.2,fd8b:4f84:7d32:99::1,[fd8b:4f84:7d32:99::1],fd8b:4f84:7d32:99::2,[fd8b:4f84:7d32:99::2]
 Environment=no_proxy=localhost,127.0.0.1,::1,[::1],198.19.0.1,198.19.0.2,fd8b:4f84:7d32:99::1,[fd8b:4f84:7d32:99::1],fd8b:4f84:7d32:99::2,[fd8b:4f84:7d32:99::2]
-Environment=all_proxy=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
-Environment=ALL_PROXY=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
-Environment=HTTPS_PROXY=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
-Environment=HTTP_PROXY=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
-Environment=https_proxy=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
-Environment=http_proxy=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
+Environment=all_proxy=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
+Environment=ALL_PROXY=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
+Environment=HTTPS_PROXY=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
+Environment=HTTP_PROXY=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
+Environment=https_proxy=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
+Environment=http_proxy=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
 Type=simple
 User=root
 WorkingDirectory=/home/hatch/workspace/wechat-bridge
