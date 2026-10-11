@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# check-deps - fail fast when the bridge cannot run. Used by humans and
+# as ExecStartPre in systemd units so a missing binary is a clear error,
+# not a mysterious failure on the first message.
+set -uo pipefail
+
+BRIDGE_HOME="${WB_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+WXBOT_BIN="${WB_WXBOT_BIN:-$BRIDGE_HOME/vendor/wx-bot/wx-bot}"
+PI_BIN="${WB_PI_BIN:-$HOME/workspace/tools/pi/bin/pi}"
+fail=0
+
+check_exec() {
+  if [ -x "$1" ]; then echo "ok: $2 ($1)"; else echo "MISSING: $2 ($1)"; fail=1; fi
+}
+check_file() {
+  if [ -r "$1" ]; then echo "ok: $2"; else echo "MISSING: $2 ($1)"; fail=1; fi
+}
+
+check_exec "$WXBOT_BIN" "wx-bot binary (run ./bin/install-wx-bot)"
+check_exec "$PI_BIN" "pi binary"
+check_file "$BRIDGE_HOME/config/bindings.example.json" "bindings example"
+check_file "$BRIDGE_HOME/config/telegram.example.json" "telegram example"
+[ -r "$BRIDGE_HOME/config/bindings.json" ] || echo "note: config/bindings.json not present (copy from example and fill in)"
+
+if [ "$fail" -ne 0 ]; then
+  echo "dependency check FAILED" >&2
+  exit 1
+fi
+echo "dependency check passed"

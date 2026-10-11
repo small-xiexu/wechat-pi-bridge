@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# install-wx-bot - install a PINNED wx-bot binary from GitHub Releases.
+# Never installs "latest": version + sha256 come from vendor/wx-bot/manifest.json.
+set -euo pipefail
+
+BRIDGE_HOME="${WB_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+MANIFEST="$BRIDGE_HOME/vendor/wx-bot/manifest.json"
+DEST_DIR="$BRIDGE_HOME/vendor/wx-bot"
+DEST_BIN="$DEST_DIR/wx-bot"
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
+need curl
+need sha256sum
+need python3
+[ -f "$MANIFEST" ] || { echo "manifest not found: $MANIFEST" >&2; exit 1; }
+
+OS="$(uname -s)"; ARCH="$(uname -m)"
+case "$OS" in
+  Linux) os=linux ;;
+  Darwin) os=darwin ;;
+  *) echo "unsupported OS: $OS" >&2; exit 1 ;;
+esac
+case "$ARCH" in
+  x86_64|amd64) arch=amd64 ;;
+  aarch64|arm64) arch=arm64 ;;
+  *) echo "unsupported arch: $ARCH" >&2; exit 1 ;;
+esac
+KEY="$os-$arch"
+
+REPO="$(python3 -c "import json;print(json.load(open('$MANIFEST'))['repository'])")"
+VERSION="$(python3 -c "import json;print(json.load(open('$MANIFEST'))['version'])")"
+ASSET="$(python3 -c "import json;print(json.load(open('$MANIFEST'))['assets']['$KEY'])")"
+SHA="$(python3 -c "import json;print(json.load(open('$MANIFEST'))['sha256']['$KEY'])")"
+[ -n "$ASSET" ] && [ -n "$SHA" ] || { echo "no asset/sha256 for $KEY in manifest" >&2; exit 1; }
+
+URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+echo "downloading $URL"
+curl -fsSL --retry 3 -o "$TMP/$ASSET" "$URL"
+
+echo "$SHA  $TMP/$ASSET" | sha256sum -c - || { echo "SHA256 MISMATCH, refusing to install" >&2; exit 1; }
+
+mkdir -p "$DEST_DIR"
+install -m 755 "$TMP/$ASSET" "$DEST_BIN"
+"$DEST_BIN" --help >/dev/null 2>&1 || "$DEST_BIN" version >/dev/null 2>&1 || {
+  echo "installed binary failed to run" >&2; exit 1
+}
+echo "installed $DEST_BIN ($REPO $VERSION, $KEY)"

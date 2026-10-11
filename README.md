@@ -6,7 +6,7 @@
 
 ## 功能
 
-- **微信通道**：官方 iLink Bot 通道，文字/图片/语音双向
+- **微信通道**：基于社区 wx-bot 的第三方 iLink 协议接入，文字/图片/语音双向
 - **Telegram 通道**：Bot API，文字/图片双向
 - **Pi 集成**：持久会话、skills 自主调用、私有模型
 - **语音转写**：微信语音自动转文字
@@ -29,7 +29,7 @@ TG   → BotAPI → bridge → SQLite → Pi → 发回 TG
 
 ### 1. 准备
 
-- Node.js 18+
+- Node.js 22+
 - Pi coding agent（https://github.com/... ）
 - 微信小号（不要用大号）
 - Telegram bot（@BotFather 创建）
@@ -37,9 +37,9 @@ TG   → BotAPI → bridge → SQLite → Pi → 发回 TG
 ### 2. 安装 wx-bot
 
 ```bash
-# 下载 wx-bot（iLink 协议客户端）
-# https://github.com/lawrencewzen/wx-bot
-cp wx-bot vendor/wx-bot/
+# 按 vendor/wx-bot/manifest.json 固定版本下载并校验 SHA256 后安装
+./bin/install-wx-bot
+# 可用 ./bin/check-deps 检查依赖是否齐全
 ```
 
 ### 3. 配置
@@ -89,8 +89,12 @@ sudo ./bin/ensure-services
 **服务突然不回消息？**
 云 VM 可能被平台重置。看门狗会在 5 分钟内自动恢复。
 
-**微信 token 失效？**
-iLink 返回 `errcode=-14` 时需要重新扫码（无 refresh 机制）。
+**微信 token 失效或账号被限制？**
+本项目使用社区 wx-bot 的第三方 iLink 协议实现。当前实测 `errcode=-14` 表示登录态失效，需要重新扫码（该协议无 refresh 机制）；除此之外账号还可能受到微信风控、限流或封禁影响。请使用专用小号，不要使用主账号。
+
+## 微信通道风险说明
+
+微信接入依赖社区项目 wx-bot 对 iLink 协议的第三方实现。本项目不声称拥有微信官方 SDK、开放平台授权或官方背书。协议、接口和账号策略可能随时变化；账号可能出现限流、登录失效、风控或封禁。请使用专用微信小号，并自行确认相关服务条款与合规要求。
 
 ## 开源协议
 
@@ -98,6 +102,6 @@ MIT License。详见 [LICENSE](LICENSE)。
 
 ## 致谢
 
-- iLink 协议：微信官方开放能力
+- iLink 接入：通过社区 wx-bot 使用第三方协议实现；不代表微信官方 SDK、官方授权或官方背书
 - wx-bot：https://github.com/lawrencewzen/wx-bot
 - 实现思路参考：[@CxxVen](https://x.com/cxxven) 的微信接入配方

@@ -12,6 +12,9 @@ sandbox/
 *.sqlite3
 *.sqlite3-*
 
+# wx-bot 二进制走 bin/install-wx-bot 按 manifest 固定版本安装，不提交
+vendor/wx-bot/wx-bot
+
 # 系统文件
 .DS_Store
 node_modules/
