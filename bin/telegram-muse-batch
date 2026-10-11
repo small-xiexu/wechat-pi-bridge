@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# telegram-muse-batch - agent-side helper for the Telegram Muse binding.
+# Usage:
+#   telegram-muse-batch pull            # pull leased events, print as one batch
+#   telegram-muse-batch pull-json       # same, as JSON
+#   telegram-muse-batch count           # number of claimable events (no side effects)
+#   telegram-muse-batch ack <ids...>    # ack handled inbox ids
+#   telegram-muse-batch send --to <chat_id> < reply.txt   # send reply text
+set -euo pipefail
+BRIDGE_HOME="${WB_HOME:-/home/hatch/workspace/wechat-bridge}"
+NODE_BIN="${WB_NODE:-/usr/bin/node}"
+export WB_TG_CONFIG="${WB_TG_CONFIG:-$BRIDGE_HOME/config/telegram.json}"
+
+cmd="${1:-help}"
+case "$cmd" in
+  pull)      exec "$NODE_BIN" "$BRIDGE_HOME/app/telegram-muse-runner.mjs" pull ;;
+  pull-json) exec "$NODE_BIN" "$BRIDGE_HOME/app/telegram-muse-runner.mjs" pull-json ;;
+  count)     exec "$NODE_BIN" "$BRIDGE_HOME/app/telegram-muse-runner.mjs" count ;;
+  ack)       shift; exec "$NODE_BIN" "$BRIDGE_HOME/app/telegram-muse-runner.mjs" ack "$@" ;;
+  send)
+    shift
+    if [ "${1:-}" != "--to" ] || [ -z "${2:-}" ]; then
+      echo "usage: telegram-muse-batch send --to <chat_id>" >&2; exit 2
+    fi
+    to="$2"
+    exec "$NODE_BIN" "$BRIDGE_HOME/app/telegram-muse-runner.mjs" send --to "$to"
+    ;;
+  *) echo "usage: telegram-muse-batch {pull|pull-json|count|ack <ids...>|send --to <chat_id>}" >&2; exit 2 ;;
+esac

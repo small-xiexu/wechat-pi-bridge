@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# wechat-bridge - start the Pi-binding webhook server.
+# The Muse binding uses pull mode (no server needed); see hooks script.
+set -euo pipefail
+BRIDGE_HOME="${WB_HOME:-/home/hatch/workspace/wechat-bridge}"
+NODE_BIN="${WB_NODE:-/usr/bin/node}"
+
+mkdir -p "$BRIDGE_HOME/state" "$BRIDGE_HOME/logs" "$BRIDGE_HOME/sandbox/pi-work"
+chmod 700 "$BRIDGE_HOME/state" 2>/dev/null || true
+
+for f in "$BRIDGE_HOME/config/bindings.json"; do
+  if [ ! -f "$f" ]; then
+    echo "missing $f - copy from config/bindings.example.json and fill real values" >&2
+    exit 1
+  fi
+  # fail-closed: secrets must not be world-readable
+  perms=$(stat -c %a "$f")
+  if [ "$perms" != "600" ]; then
+    echo "refusing to start: $f must be chmod 600 (is $perms)" >&2
+    exit 1
+  fi
+done
+
+exec "$NODE_BIN" "$BRIDGE_HOME/app/server.mjs"

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# ensure-services: reinstall and restart bridge systemd units if missing/inactive.
+# Safe to run frequently (idempotent). Survives VM replacement via cron.
+set -u
+BRIDGE_HOME="/home/hatch/workspace/wechat-bridge"
+NEED_RELOAD=0
+
+for svc in telegram-bridge wechat-bridge wx-bot-pi; do
+  unit="/etc/systemd/system/${svc}.service"
+  if [ ! -f "$unit" ]; then
+    src="$BRIDGE_HOME/systemd/${svc}.service"
+    if [ -f "$src" ]; then
+      cp "$src" "$unit"
+      if [ "$svc" = "wx-bot-pi" ] || [ "$svc" = "wechat-bridge" ]; then chmod 600 "$unit"; fi
+      NEED_RELOAD=1
+    fi
+  fi
+done
+
+if [ "$NEED_RELOAD" = "1" ]; then
+  systemctl daemon-reload 2>/dev/null || sudo systemctl daemon-reload
+fi
+
+for svc in telegram-bridge wechat-bridge wx-bot-pi; do
+  if ! systemctl is-active --quiet "$svc.service" 2>/dev/null; then
+    if ! sudo systemctl is-active --quiet "$svc.service" 2>/dev/null; then
+      sudo systemctl enable --now "$svc.service" 2>/dev/null || sudo systemctl start "$svc.service" 2>/dev/null
+    fi
+  fi
+done

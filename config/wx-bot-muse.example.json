@@ -1,0 +1,1 @@
+{"bindings":[{"allow_wxids":[],"delivery":"pull","name":"muse"}],"local_api":{"listen":"127.0.0.1:18790","token":""},"media_dir":"/home/hatch/workspace/wechat-bridge/state/wx-muse/media","state_dir":"/home/hatch/workspace/wechat-bridge/state/wx-muse"}

@@ -1,0 +1,26 @@
+# wx-bot-muse.service - TEMPLATE ONLY. Do NOT install without review.
+# wx-bot process for the MUSE binding (delivery: pull).
+# Scan QR with WeChat 小号A: wx-bot --config <config> login muse
+[Unit]
+Description=wx-bot iLink bridge - muse binding (pull)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hatch
+Environment=HOME=/home/hatch
+WorkingDirectory=/home/hatch
+ExecStart=/home/hatch/workspace/wechat-bridge/vendor/wx-bot/wx-bot --config /home/hatch/workspace/wechat-bridge/config/wx-bot-muse.json run
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=10
+TimeoutStopSec=15
+KillMode=control-group
+MemoryMax=256M
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

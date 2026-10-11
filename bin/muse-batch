@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# muse-batch - agent-side helper for the Muse binding (delivery: pull).
+# Usage:
+#   muse-batch pull            # pull leased events, print as one batch
+#   muse-batch count           # number of claimable events (no side effects)
+#   muse-batch ack <ids...>    # ack handled events
+#   muse-batch send --to <wxid> < file.txt   # send reply text
+set -euo pipefail
+BRIDGE_HOME="${WB_HOME:-/home/hatch/workspace/wechat-bridge}"
+NODE_BIN="${WB_NODE:-/usr/bin/node}"
+export WB_WXBOT_BIN="${WB_WXBOT_BIN:-$BRIDGE_HOME/vendor/wx-bot/wx-bot}"
+export WB_WXBOT_MUSE_CONFIG="${WB_WXBOT_MUSE_CONFIG:-$BRIDGE_HOME/config/wx-bot-muse.json}"
+
+cmd="${1:-help}"
+case "$cmd" in
+  pull)  exec "$NODE_BIN" "$BRIDGE_HOME/app/muse-runner.mjs" pull ;;
+  count) exec "$NODE_BIN" "$BRIDGE_HOME/app/muse-runner.mjs" count ;;
+  ack)   shift; exec "$NODE_BIN" "$BRIDGE_HOME/app/muse-runner.mjs" ack "$@" ;;
+  send)
+    shift
+    if [ "${1:-}" != "--to" ] || [ -z "${2:-}" ]; then
+      echo "usage: muse-batch send --to <wxid> < file.txt" >&2; exit 2
+    fi
+    to="$2"
+    exec "$NODE_BIN" "$BRIDGE_HOME/app/muse-runner.mjs" send --to "$to"
+    ;;
+  *) echo "usage: muse-batch {pull|count|ack <ids...>|send --to <wxid>}" >&2; exit 2 ;;
+esac

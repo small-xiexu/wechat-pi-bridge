@@ -1,0 +1,17 @@
+# 敏感配置（绝不提交）
+config/telegram.json
+config/wx-bot-*.json
+!config/wx-bot-*.example.json
+config/bindings.json
+!config/bindings.example.json
+
+# 运行时数据
+state/
+logs/
+sandbox/
+*.sqlite3
+*.sqlite3-*
+
+# 系统文件
+.DS_Store
+node_modules/

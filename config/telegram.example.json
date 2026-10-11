@@ -1,0 +1,1 @@
+{"_comment":"COPY to telegram.json, fill real values, chmod 600. Never commit telegram.json.","telegram":{"allowed_user_ids":["__REPLACE_WITH_YOUR_TELEGRAM_USER_ID__"],"api_base":"https://api.telegram.org","debounce_ms":2500,"muse_bot_token":"__REPLACE_ME__","pi_bot_token":"__REPLACE_ME__","poll_timeout_secs":30}}

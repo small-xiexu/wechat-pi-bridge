@@ -1,0 +1,35 @@
+# wx-bot-pi.service - wx-bot iLink bridge, pi binding (PRODUCTION)
+[Unit]
+Description=wx-bot iLink bridge - pi binding (webhook)
+After=network-online.target wechat-bridge.service
+Wants=network-online.target
+BindsTo=wechat-bridge.service
+
+[Service]
+Environment=NO_PROXY=localhost,127.0.0.1,::1,[::1],198.19.0.1,198.19.0.2,fd8b:4f84:7d32:99::1,[fd8b:4f84:7d32:99::1],fd8b:4f84:7d32:99::2,[fd8b:4f84:7d32:99::2]
+Environment=no_proxy=localhost,127.0.0.1,::1,[::1],198.19.0.1,198.19.0.2,fd8b:4f84:7d32:99::1,[fd8b:4f84:7d32:99::1],fd8b:4f84:7d32:99::2,[fd8b:4f84:7d32:99::2]
+Environment=all_proxy=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
+Environment=ALL_PROXY=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
+Environment=HTTPS_PROXY=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
+Environment=HTTP_PROXY=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
+Environment=https_proxy=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
+Environment=http_proxy=http://hatch-runtime:__REDACTED__@hatch-egress-proxy:3128
+Type=simple
+User=root
+Environment=HOME=/home/hatch
+Environment=NODE_USE_ENV_PROXY=1
+Environment=NODE_EXTRA_CA_CERTS=/run/hatch/egress-tls/ca-bundle.pem
+Environment=SSL_CERT_FILE=/run/hatch/egress-tls/ca-bundle.pem
+Environment=WXBOT_PI_WEBHOOK_KEY=__REDACTED__
+WorkingDirectory=/home/hatch/workspace/wechat-bridge
+ExecStart=/home/hatch/workspace/wechat-bridge/vendor/wx-bot/wx-bot --config /home/hatch/workspace/wechat-bridge/config/wx-bot-pi.json run
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=10
+TimeoutStopSec=15
+KillMode=control-group
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

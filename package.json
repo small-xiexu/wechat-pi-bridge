@@ -1,0 +1,1 @@
+{"description":"Phase-1 lightweight WeChat bridge: wx-bot (iLink) <-> Node adapter <-> Muse (pull) / Pi (webhook)","engines":{"node":">=22"},"name":"wechat-bridge","private":true,"scripts":{"dispatch-once":"node app/dispatch.mjs once","start":"node app/server.mjs"},"type":"module","version":"0.1.0"}

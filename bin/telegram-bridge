@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# telegram-bridge - start the Telegram channel supervisor.
+# Runs both bot pollers (muse + pi) and the pi dispatch loop in one process.
+# Outbound-only (long-poll); no inbound ports.
+set -euo pipefail
+BRIDGE_HOME="${WB_HOME:-/home/hatch/workspace/wechat-bridge}"
+NODE_BIN="${WB_NODE:-/usr/bin/node}"
+CFG="$BRIDGE_HOME/config/telegram.json"
+# Cap V8 old-space so a runaway queue/cache can't eat the VM (Pi review #2).
+case "${NODE_OPTIONS:-}" in
+  *max-old-space-size*) ;;
+  *) export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=128" ;;
+esac
+
+mkdir -p "$BRIDGE_HOME/state" "$BRIDGE_HOME/logs" "$BRIDGE_HOME/sandbox/pi-work-tg"
+chmod 700 "$BRIDGE_HOME/state" 2>/dev/null || true
+
+if [ ! -f "$CFG" ]; then
+  echo "missing $CFG - copy from config/telegram.example.json and fill real values" >&2
+  exit 1
+fi
+# fail-closed: secrets must not be world-readable
+perms=$(stat -c %a "$CFG")
+if [ "$perms" != "600" ]; then
+  echo "refusing to start: $CFG must be chmod 600 (is $perms)" >&2
+  exit 1
+fi
+# fail-closed: placeholder tokens
+if grep -q "__REPLACE_ME__" "$CFG"; then
+  echo "refusing to start: $CFG still has __REPLACE_ME__ placeholder tokens" >&2
+  exit 1
+fi
+
+exec "$NODE_BIN" "$BRIDGE_HOME/app/telegram-bridge.mjs"
