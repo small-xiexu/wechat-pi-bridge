@@ -2,7 +2,8 @@
 # ensure-services: reinstall and restart bridge systemd units if missing/inactive.
 # Safe to run frequently (idempotent). Survives VM replacement via cron.
 set -u
-BRIDGE_HOME="/home/hatch/workspace/wechat-bridge"
+BRIDGE_HOME="${WB_HOME:-/home/hatch/workspace/wechat-pi-bridge}"
+NODE_BIN="${WB_NODE:-/usr/bin/node}"
 NEED_RELOAD=0
 
 for svc in telegram-bridge wechat-bridge wx-bot-pi; do
@@ -19,6 +20,19 @@ done
 
 if [ "$NEED_RELOAD" = "1" ]; then
   systemctl daemon-reload 2>/dev/null || sudo systemctl daemon-reload
+fi
+
+# An invalid WeChat login is an operator action, not a service crash.  Keep
+# the watchdog green so it does not repeatedly restart processes that cannot
+# repair a dead login without a fresh QR scan.
+AUTH_STATE="$BRIDGE_HOME/state/wx-auth.json"
+if [ -f "$AUTH_STATE" ] && "$NODE_BIN" -e '
+  const fs = require("node:fs");
+  try { process.exit(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).status === "invalid" ? 0 : 1); }
+  catch { process.exit(1); }
+' "$AUTH_STATE" 2>/dev/null; then
+  echo "微信需重新扫码"
+  exit 0
 fi
 
 for svc in telegram-bridge wechat-bridge wx-bot-pi; do

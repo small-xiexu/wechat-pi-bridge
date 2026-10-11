@@ -15,14 +15,19 @@ Environment=HTTP_PROXY=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-prox
 Environment=https_proxy=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
 Environment=http_proxy=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
 Type=simple
-User=root
-Environment=HOME=/home/hatch
+User=wechat-bridge
+Group=wechat-bridge
+Environment=WB_HOME=/home/hatch/workspace/wechat-pi-bridge
+Environment=HOME=/var/lib/wechat-pi-bridge/pi-home
+Environment=WB_PI_HOME=/var/lib/wechat-pi-bridge/pi-home
+Environment=WB_PI_SESSION_DIR=/var/lib/wechat-pi-bridge/pi-home/sessions
 Environment=NODE_USE_ENV_PROXY=1
 Environment=NODE_EXTRA_CA_CERTS=/run/hatch/egress-tls/ca-bundle.pem
 Environment=SSL_CERT_FILE=/run/hatch/egress-tls/ca-bundle.pem
 Environment=WXBOT_PI_WEBHOOK_KEY=__REPLACE_WITH_RANDOM_32B_HEX__
-WorkingDirectory=/home/hatch/workspace/wechat-bridge
-ExecStart=/home/hatch/workspace/wechat-bridge/vendor/wx-bot/wx-bot --config /home/hatch/workspace/wechat-bridge/config/wx-bot-pi.json run
+WorkingDirectory=/home/hatch/workspace/wechat-pi-bridge
+ExecStartPre=/home/hatch/workspace/wechat-pi-bridge/bin/check-deps
+ExecStart=/home/hatch/workspace/wechat-pi-bridge/vendor/wx-bot/wx-bot --config /home/hatch/workspace/wechat-pi-bridge/config/wx-bot-pi.json run
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=300
@@ -30,6 +35,12 @@ StartLimitBurst=10
 TimeoutStopSec=15
 KillMode=control-group
 MemoryMax=256M
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateDevices=yes
+ReadWritePaths=/home/hatch/workspace/wechat-pi-bridge/state /home/hatch/workspace/wechat-pi-bridge/logs /home/hatch/workspace/wechat-pi-bridge/sandbox /var/lib/wechat-pi-bridge/pi-home /var/lib/wechat-pi-bridge/pi-home/sessions
 
 [Install]
 WantedBy=multi-user.target

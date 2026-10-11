@@ -9,6 +9,7 @@ import { openDb, insertInboxEvent, audit, nowIso, payloadHash } from './db.mjs';
 import { loadBindingsConfig, checkBearer, checkSignature, checkIdentity, AuthError } from './auth.mjs';
 import { normalizeEvent, SchemaError } from './normalize.mjs';
 import { addToBatch } from './debounce.mjs';
+import { readAuthState } from './wx-auth-state.mjs';
 
 const BRIDGE_HOME = process.env.WB_HOME || '/home/hatch/workspace/wechat-bridge';
 const BINDINGS_PATH = `${BRIDGE_HOME}/config/bindings.json`;
@@ -134,8 +135,21 @@ const server = createServer((req, res) => {
     try {
       db.prepare('SELECT 1').get();
       const pending = db.prepare("SELECT COUNT(*) c FROM batches WHERE status = 'pending'").get().c;
+      const auth = readAuthState({ bridgeHome: BRIDGE_HOME });
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, pending_batches: pending, ts: nowIso() }));
+      res.end(JSON.stringify({
+        ok: true,
+        pending_batches: pending,
+        wechat_auth: {
+          status: auth.status,
+          reason: auth.reason,
+          source: auth.source,
+          first_seen_at: auth.first_seen_at,
+          last_seen_at: auth.last_seen_at,
+          last_valid_at: auth.last_valid_at,
+        },
+        ts: nowIso(),
+      }));
     } catch (e) { res.writeHead(500); res.end('db not ready'); }
     return;
   }

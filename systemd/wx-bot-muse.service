@@ -8,10 +8,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=hatch
-Environment=HOME=/home/hatch
-WorkingDirectory=/home/hatch
-ExecStart=/home/hatch/workspace/wechat-bridge/vendor/wx-bot/wx-bot --config /home/hatch/workspace/wechat-bridge/config/wx-bot-muse.json run
+User=wechat-bridge
+Group=wechat-bridge
+Environment=WB_HOME=/home/hatch/workspace/wechat-pi-bridge
+Environment=HOME=/var/lib/wechat-pi-bridge/pi-home
+Environment=WB_PI_HOME=/var/lib/wechat-pi-bridge/pi-home
+Environment=WB_PI_SESSION_DIR=/var/lib/wechat-pi-bridge/pi-home/sessions
+WorkingDirectory=/home/hatch/workspace/wechat-pi-bridge
+ExecStartPre=/home/hatch/workspace/wechat-pi-bridge/bin/check-deps
+ExecStart=/home/hatch/workspace/wechat-pi-bridge/vendor/wx-bot/wx-bot --config /home/hatch/workspace/wechat-pi-bridge/config/wx-bot-muse.json run
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=300
@@ -21,6 +26,10 @@ KillMode=control-group
 MemoryMax=256M
 NoNewPrivileges=yes
 PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateDevices=yes
+ReadWritePaths=/home/hatch/workspace/wechat-pi-bridge/state /home/hatch/workspace/wechat-pi-bridge/logs /home/hatch/workspace/wechat-pi-bridge/sandbox /var/lib/wechat-pi-bridge/pi-home /var/lib/wechat-pi-bridge/pi-home/sessions
 
 [Install]
 WantedBy=default.target

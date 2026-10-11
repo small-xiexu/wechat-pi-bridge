@@ -6,8 +6,9 @@
 // re-queue Muse inbound events.
 import { spawnSync } from 'node:child_process';
 
-const WXBOT_BIN = process.env.WB_WXBOT_BIN || '/home/hatch/workspace/wechat-bridge/vendor/wx-bot/wx-bot';
-const WXBOT_CONFIG = process.env.WB_WXBOT_MUSE_CONFIG || '/home/hatch/workspace/wechat-bridge/config/wx-bot-muse.json';
+const BRIDGE_HOME_MR = process.env.WB_HOME || '/home/hatch/workspace/wechat-pi-bridge';
+const WXBOT_BIN = process.env.WB_WXBOT_BIN || `${BRIDGE_HOME_MR}/vendor/wx-bot/wx-bot`;
+const WXBOT_CONFIG = process.env.WB_WXBOT_MUSE_CONFIG || `${BRIDGE_HOME_MR}/config/wx-bot-muse.json`;
 const BINDING = process.env.WB_MUSE_BINDING || 'muse';
 
 function wxbot(args, input = null) {
