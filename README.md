@@ -1,8 +1,8 @@
 # wechat-pi-bridge
 
-**微信 + Telegram 双通道接入 Pi AI 助手。**
+**Muse 负责托付、Pi 负责干活：我把微信和 TG 外包给了 AI。**
 
-在微信和 Telegram 里直接跟你的 AI 助手聊天：发文字、发图片、语音转写、AI 生图，全都行。Muse 负责搭桥，Pi 负责干活。
+微信 + Telegram 双通道接入 Pi AI 助手。在微信和 Telegram 里直接跟你的 AI 助手聊天：发文字、发图片、语音转写、AI 生图，全都行。Muse 做架构师（设计、搭桥、部署、自愈），Pi 做执行者（聊天、看图、生图）。
 
 ## 功能
 
