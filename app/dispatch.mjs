@@ -10,6 +10,7 @@ import { openDb, dueBatches, claimBatch, batchTexts, setBatchStatus,
   createDeliveryParts, dueDeliveryParts, setPartStatus, maybeCompleteTarget, audit, nowIso } from './db.mjs';
 import { addToBatch } from './debounce.mjs';
 import { runPi, isAllowedMediaPath } from './pi-runner.mjs';
+import { shrinkSessionImages } from './session-images.mjs';
 import { sendText, sendTelegramText, backoffMs } from './outbox.mjs';
 import { markdownToPlain, formatBatchForPi } from './normalize.mjs';
 import { loadBindingsConfig } from './auth.mjs';
@@ -180,12 +181,13 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
       ]).filter(p => isAllowedMediaPath(p, mediaRoots));
       // dedupe; reject rather than pass arbitrary absolute paths to Pi.
       const seen = new Set(); const uniqImages = images.filter(p => !seen.has(p) && seen.add(p));
+      const sessionIdUsed = guardedSessionId(b.binding, b.authorized_principal, cfg?.pi_session_dir || undefined);
       const r = await runPi(input, {
         piBin: cfg?.pi_bin || undefined,
         model: cfg?.pi_model || 'sub2api/gpt-6.1-sol',
         workdir,
         timeoutMs: cfg?.pi_timeout_ms || 600_000,
-        sessionId: guardedSessionId(b.binding, b.authorized_principal, cfg?.pi_session_dir || undefined),
+        sessionId: sessionIdUsed,
         sessionDir: cfg?.pi_session_dir || undefined,
         images: uniqImages,
       });
@@ -229,6 +231,16 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
       });
       setBatchStatus(db, b.id, 'done', { fencingToken: token });
       audit(db, { binding: b.binding, eventType: 'batch.pi_done', entityType: 'batches', entityId: b.id, details: { parts: parts.length } });
+      // Route-1 fix for session bloat: downscale images from older exchanges
+      // inside the Pi session file so later turns stop re-sending MB-sized
+      // originals. Best-effort only; never affects delivery.
+      try {
+        const shrunk = shrinkSessionImages(cfg?.pi_session_dir || '/home/hatch/.pi/agent/sessions', sessionIdUsed);
+        if (shrunk?.replaced) {
+          audit(db, { binding: b.binding, eventType: 'session.images_shrunk', entityType: 'batches', entityId: b.id, details: shrunk });
+          console.log(`[dispatch] shrunk ${shrunk.replaced} session images, saved ${(shrunk.savedBytes / 1048576).toFixed(1)}MB (session ${sessionIdUsed})`);
+        }
+      } catch (e) { console.error(`[dispatch] session image shrink failed: ${e.message}`); }
       results.batches.push({ id: b.id, status: 'done', parts: parts.length });
     } catch (e) {
       const attempt = (b.attempt || 0) + 1;
