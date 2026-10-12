@@ -94,6 +94,16 @@ function sessionIdFor(binding, principal) {
  *  When the current session file exceeds the cap, rotate to a fresh epoch
  *  (the old file stays on disk) and continue with the new session. */
 const SESSION_MAX_BYTES = Number(process.env.WB_PI_SESSION_MAX_MB || 10) * 1024 * 1024;
+
+/** Batch -> Pi retry policy. The upstream relay has multi-hour overload
+ *  waves (503s), while the old policy (5 attempts over ~3 minutes) burned
+ *  out long before a wave passed and dead-lettered good messages. Retry
+ *  up to 12 times with a long backoff curve (~3h of total coverage). */
+const BATCH_MAX_ATTEMPTS = Number(process.env.WB_BATCH_MAX_ATTEMPTS || 12);
+const BATCH_RETRY_DELAYS_MS = [30, 60, 120, 300, 600, 900, 1200, 1800].map((s) => s * 1000);
+function batchRetryDelayMs(attempt) {
+  return BATCH_RETRY_DELAYS_MS[Math.min(Math.max(attempt - 1, 0), BATCH_RETRY_DELAYS_MS.length - 1)];
+}
 function sessionFileSizeBytes(sessionDir, sessionId) {
   try {
     const f = readdirSync(sessionDir).find((n) => n.endsWith(`_${sessionId}.jsonl`));
@@ -285,9 +295,9 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
         if (shrunk?.replaced) console.log(`[dispatch] post-failure shrink of ${sidNow}: ${shrunk.replaced} images, saved ${(shrunk.savedBytes / 1048576).toFixed(1)}MB`);
       } catch { /* best effort */ }
       const attempt = (b.attempt || 0) + 1;
-      const wait = backoffMs(Math.min(attempt, 3));
+      const wait = batchRetryDelayMs(attempt);
       const next = new Date(Date.now() + wait).toISOString();
-      if (attempt >= 5) {
+      if (attempt >= BATCH_MAX_ATTEMPTS) {
         setBatchStatus(db, b.id, 'dead', { fencingToken: token, error: String(e.message).slice(0, 500) });
         db.prepare(`INSERT INTO dead_letters (entity_type, entity_id, reason, attempts, created_at) VALUES ('batches', ?, ?, ?, ?)`)
           .run(b.id, String(e.message).slice(0, 500), attempt, nowIso());
