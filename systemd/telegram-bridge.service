@@ -5,18 +5,26 @@
 # The Muse side is pull-based: the hook script wakes the agent, which uses
 # bin/telegram-muse-batch to pull/reply/ack.
 #
-# SECURITY NOTE (TECH_PLAN v3.1 §2.4): All units run as the dedicated
-# low-privilege wechat-bridge user. Deploy-time setup must grant it write
-# access only to the paths listed in ReadWritePaths below.
+# SECURITY NOTE: In production these units run as root (User=root).
+# A dedicated low-privilege user was the original design, but the deployment
+# platform mounts /home as a restricted overlay: chown is not permitted there
+# and a non-root user cannot traverse the home directory, while only the home
+# tree survives platform resets - so a non-root service user cannot run this
+# stack on that platform. The remaining hardening (NoNewPrivileges,
+# PrivateTmp, ProtectSystem=strict, ReadWritePaths allowlists) stays in
+# place. If your platform allows a dedicated user to traverse the deploy
+# tree, switching User=/Group= back to that user is recommended.
 [Unit]
 Description=Telegram bridge - dual bot pollers + Pi dispatch
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 Type=simple
-User=wechat-bridge
-Group=wechat-bridge
+User=root
+Group=root
 WorkingDirectory=/home/hatch/workspace/wechat-pi-bridge
 Environment=WB_HOME=/home/hatch/workspace/wechat-pi-bridge
 Environment=HOME=/var/lib/wechat-pi-bridge/pi-home
@@ -39,8 +47,6 @@ Environment=NO_PROXY=localhost,127.0.0.1,::1,[::1],198.19.0.1,198.19.0.2,fd8b:4f
 ExecStart=/home/hatch/workspace/wechat-pi-bridge/bin/telegram-bridge
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=10
 TimeoutStopSec=20
 KillMode=control-group
 MemoryMax=512M

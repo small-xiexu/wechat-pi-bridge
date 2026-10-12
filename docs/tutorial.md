@@ -547,11 +547,13 @@ getUpdates → 白名单校验 → SQLite inbox → debounce 2.5 秒
 Description=Telegram bridge - Pi bot poller and dispatcher
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 Type=simple
-User=__USER__
-Group=__USER__
+User=root
+Group=root
 WorkingDirectory=/home/__USER__/workspace/wechat-pi-bridge
 
 # Pi 按 HOME 查找 ~/.pi/agent 配置
@@ -581,8 +583,6 @@ Environment=SSL_CERT_FILE=__SSL_CERT_FILE_PATH__
 ExecStart=/usr/bin/node --max-old-space-size=128 /home/__USER__/workspace/wechat-pi-bridge/app/telegram-bridge.mjs
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=10
 TimeoutStopSec=20
 KillMode=control-group
 MemoryMax=512M
@@ -601,6 +601,10 @@ sudo command -v node
 ```
 
 再将 `ExecStart` 中的路径改为实际路径。
+
+> **关于运行用户**：本文三个服务的 unit 示例都以 `User=root` 运行，与生产部署一致。原设计是专用低权限用户，但本文使用的云 VM 将 `/home` 挂载为受限 overlay：`chown` 被拒绝、非 root 用户连家目录都无法进入，而只有家目录能跨 VM 重置保留，服务换成非 root 用户会直接全灭。如果你的平台允许专用用户访问部署目录，建议把 `User=`/`Group=` 改回该用户。
+>
+> 另注意：`StartLimitIntervalSec` / `StartLimitBurst` 属于 `[Unit]` 段，写进 `[Service]` 段会被 systemd 忽略并输出警告，本文示例已放在 `[Unit]` 段。
 
 ---
 
@@ -692,6 +696,14 @@ sudo chmod 600 config/bindings.json
 }
 ```
 
+> ⚠️ **webhook 密钥三处必须一致（最容易踩的坑）**：先用 `openssl rand -hex 32` 生成一个值，然后原样填到三处：
+>
+> 1. 本节 `config/bindings.json` 的 `bindings.pi.webhook_token`
+> 2. 6.4 的 `wechat-bridge.service` 中 `Environment=WXBOT_PI_WEBHOOK_KEY=`
+> 3. 6.5 的 `wx-bot-pi.service` 中 `Environment=WXBOT_PI_WEBHOOK_KEY=`（wx-bot 通过 `wx-bot-pi.json` 里的 `"key": "env:WXBOT_PI_WEBHOOK_KEY"` 读取）
+>
+> 任意一处不一致，wx-bot 的 webhook 投递会被桥以 401 拒绝，微信消息会静默堆积在 wx-bot 的重试队列里。首次部署和每次恢复（看门狗重装 unit）时都要核对。
+
 ### 6.3 iLink 扫码登录
 
 使用社区 wx-bot 接入微信侧 iLink 接口：
@@ -732,11 +744,13 @@ sudo /home/__USER__/workspace/wechat-pi-bridge/vendor/wx-bot/wx-bot login --conf
 Description=WeChat bridge - Pi webhook and dispatcher
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 Type=simple
-User=__USER__
-Group=__USER__
+User=root
+Group=root
 WorkingDirectory=/home/__USER__/workspace/wechat-pi-bridge
 
 Environment=HOME=/home/__USER__
@@ -763,8 +777,6 @@ Environment=SSL_CERT_FILE=__SSL_CERT_FILE_PATH__
 ExecStart=/home/__USER__/workspace/wechat-pi-bridge/bin/wechat-bridge
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=10
 TimeoutStopSec=20
 KillMode=control-group
 MemoryMax=512M
@@ -787,11 +799,13 @@ Description=wx-bot iLink bridge - Pi binding
 After=network-online.target wechat-bridge.service
 Wants=network-online.target
 BindsTo=wechat-bridge.service
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 Type=simple
-User=__USER__
-Group=__USER__
+User=root
+Group=root
 WorkingDirectory=/home/__USER__/workspace/wechat-pi-bridge
 
 Environment=HOME=/home/__USER__
@@ -820,8 +834,6 @@ ExecStart=/home/__USER__/workspace/wechat-pi-bridge/vendor/wx-bot/wx-bot \
   run
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=10
 TimeoutStopSec=15
 KillMode=control-group
 MemoryMax=256M

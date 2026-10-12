@@ -21,7 +21,7 @@
 
 **2/** 先说架构，很简单（全部部署在 Muse 提供的云 VM 上）：
 
-微信小号 → iLink 官方通道 → wx-bot → 桥接服务 → Pi
+微信小号 → iLink 协议（社区 wx-bot 第三方客户端）→ 桥接服务 → Pi
 TG bot → Bot API 轮询 → bridge → Pi
 
 Muse 是建筑师，Pi 是住户。这套 bridge、看门狗和 SQLite 流程由 Muse 辅助搭建，Pi 负责模型调用、会话处理和生图。
@@ -52,11 +52,11 @@ Muse 是建筑师，Pi 是住户。这套 bridge、看门狗和 SQLite 流程由
 
 ---
 
-**5/** 微信通道：走官方 iLink Bot 通道。
+**5/** 微信通道：走 iLink 协议 + 社区 wx-bot 第三方客户端。
 
 小号扫码登录，wx-bot 跑长轮询，webhook 转给桥接服务。图片 wx-bot 会落盘，桥查到路径以 @file 传 Pi。
 
-官方限制：一对一私聊、不支持群、不能主动发起对话、token 失效（errcode=-14）要重新扫码。
+实测限制：一对一私聊、不支持群、不能主动发起对话、token 失效（errcode=-14）要重新扫码。
 
 [配图：02-wechat-flow.png]
 

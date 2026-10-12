@@ -4,6 +4,8 @@ Description=wx-bot iLink bridge - pi binding (webhook)
 After=network-online.target wechat-bridge.service
 Wants=network-online.target
 BindsTo=wechat-bridge.service
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 Environment=NO_PROXY=localhost,127.0.0.1,::1,[::1],198.19.0.1,198.19.0.2,fd8b:4f84:7d32:99::1,[fd8b:4f84:7d32:99::1],fd8b:4f84:7d32:99::2,[fd8b:4f84:7d32:99::2]
@@ -15,8 +17,8 @@ Environment=HTTP_PROXY=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-prox
 Environment=https_proxy=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
 Environment=http_proxy=http://hatch-runtime:__PROXY_PASSWORD__@hatch-egress-proxy:3128
 Type=simple
-User=wechat-bridge
-Group=wechat-bridge
+User=root
+Group=root
 Environment=WB_HOME=/home/hatch/workspace/wechat-pi-bridge
 Environment=HOME=/var/lib/wechat-pi-bridge/pi-home
 Environment=WB_PI_HOME=/var/lib/wechat-pi-bridge/pi-home
@@ -24,14 +26,16 @@ Environment=WB_PI_SESSION_DIR=/var/lib/wechat-pi-bridge/pi-home/sessions
 Environment=NODE_USE_ENV_PROXY=1
 Environment=NODE_EXTRA_CA_CERTS=/run/hatch/egress-tls/ca-bundle.pem
 Environment=SSL_CERT_FILE=/run/hatch/egress-tls/ca-bundle.pem
+# WEBHOOK KEY: at deploy/restore time replace the placeholder below with the
+# SAME value as config/bindings.json -> bindings.pi.webhook_token and the
+# WXBOT_PI_WEBHOOK_KEY in wechat-bridge.service. All three must be identical
+# (generate once: openssl rand -hex 32), otherwise webhook delivery fails 401.
 Environment=WXBOT_PI_WEBHOOK_KEY=__REPLACE_WITH_RANDOM_32B_HEX__
 WorkingDirectory=/home/hatch/workspace/wechat-pi-bridge
 ExecStartPre=/home/hatch/workspace/wechat-pi-bridge/bin/check-deps
 ExecStart=/home/hatch/workspace/wechat-pi-bridge/vendor/wx-bot/wx-bot --config /home/hatch/workspace/wechat-pi-bridge/config/wx-bot-pi.json run
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=10
 TimeoutStopSec=15
 KillMode=control-group
 MemoryMax=256M
