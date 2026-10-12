@@ -38,6 +38,7 @@ const tgBindings = {
     'telegram-pi': {
       channel: 'telegram',
       pi_workdir: `${BRIDGE_HOME}/sandbox/pi-work-tg`,
+      image_model: 'sub2api-img/gpt-image-2.5-sunburst',
       pi_model: 'sub2api/gpt-6.1-sol',
       pi_timeout_ms: 600_000,
       pi_session_dir: process.env.WB_PI_SESSION_DIR || '/home/hatch/.pi/agent/sessions',

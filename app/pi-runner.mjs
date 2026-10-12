@@ -79,11 +79,14 @@ export function buildPiArgs({ model, sessionId = null, sessionDir = DEFAULT_SESS
   return args;
 }
 
-function childEnv() {
+function childEnv(workdir) {
   // Pi reads its own model/auth files from HOME. Do not inherit bridge
   // secrets (WB_*, Telegram tokens, webhook keys, or DB keys).
   const env = {
     HOME: process.env.WB_PI_HOME || DEFAULT_PI_HOME,
+    // codemode writes generated images to TMPDIR; point it at the workdir
+    // so the bridge's outbound scan can find and send them.
+    ...(workdir ? { TMPDIR: workdir } : {}),
     PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
     LANG: process.env.LANG || 'C.UTF-8',
     LC_ALL: process.env.LC_ALL || 'C.UTF-8',
@@ -135,7 +138,7 @@ export function runPi(input, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: safeWorkdir,
       detached: true,
-      env: childEnv(),
+      env: childEnv(safeWorkdir),
     });
     let stdout = '';
     let stderr = '';
