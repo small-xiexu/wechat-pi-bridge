@@ -1,7 +1,7 @@
 # X 发布文案（Thread）
 
 > 配图建议：都在 images/ 目录
-> 1/ 配视频：微信对话屏录（主视觉，待 sean 提供），不再用 AI 封面图
+> 1/ 配视频：微信对话屏录（主视觉）images/wechat-demo-trimmed.mp4（18 秒剪辑版，原片 68 秒：打字加速、两段等待已掐掉、静音），不再用 AI 封面图
 > 2/ 架构图 chapter-02.png
 > 3/ Pi 配置图 chapter-04.png
 > 5/ 微信流转图 chapter-06.png
@@ -17,7 +17,7 @@ TL;DR：Muse 搭桥 + Pi 执行，微信/TG 双通道，文字/图片/语音/生
 
 "ChatGPT 适合查询，Muse 适合托付"——我把微信和 Telegram 的日常聊天整个托付出去：Muse 做架构师（设计、搭桥、部署、自愈），Pi 做执行者（聊天、看图、生图）。发文字秒回、发照片它能看懂、微信语音自动转文字。
 
-[配视频：微信对话屏录（待 sean 提供）]
+[配视频：images/wechat-demo-trimmed.mp4]
 
 ---
 
