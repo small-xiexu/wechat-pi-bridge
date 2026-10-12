@@ -69,6 +69,7 @@ export function buildPiArgs({ model, sessionId = null, sessionDir = DEFAULT_SESS
     '--no-mcp',
     '--no-extensions',
     '--extension', 'builtin:codemode',
+    '--extension', `${process.env.WB_PI_HOME || DEFAULT_PI_HOME}/.pi/agent/extensions/sub2api-images.ts`,
     '--no-skills',
     '--no-context-files',
     '--no-prompt-templates',
