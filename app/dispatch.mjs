@@ -151,6 +151,18 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
   const now = nowIso();
   const results = { batches: [], parts: [] };
 
+  // 0. Reap batches whose claim lease expired: the claiming process died
+  // mid-run (service restart, VM reset, crash). dueBatches only selects
+  // 'pending', so without this a mid-run kill wedges the batch forever
+  // (observed 2026-10-12: WeChat batches 39 and 41).
+  try {
+    const reaped = db.prepare(`UPDATE batches SET status = 'pending', lease_owner = NULL,
+      lease_until = NULL, fencing_token = NULL, next_run_at = ?, updated_at = ?
+      WHERE status = 'processing' AND lease_until IS NOT NULL AND lease_until < ?`)
+      .run(now, now, now);
+    if (reaped.changes) console.log(`[dispatch] reaped ${reaped.changes} expired-lease batch(es) back to pending`);
+  } catch { /* best effort */ }
+
   // 1. due batches -> run pi
   for (const b of dueBatches(db, now)) {
     const token = fencing();

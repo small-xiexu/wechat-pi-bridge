@@ -46,7 +46,11 @@ export function encryptText(plaintext, key) {
 export function decryptText(ciphertext, key) {
   if (!isEncrypted(ciphertext)) return String(ciphertext ?? '');
   const [, version, iv64, tag64, body64] = ciphertext.split(':');
-  if (version !== 'v1' || !iv64 || !tag64 || !body64) throw new Error('invalid encrypted text');
+  // NOTE: body64 may legitimately be '' — a message with empty text (e.g. a
+  // photo with no caption) encrypts to `enc:v1:<iv>:<tag>:` and must decrypt
+  // back to ''. Rejecting empty bodies here poisoned every batch containing
+  // a textless image message (found 2026-10-12, WeChat batch 40).
+  if (version !== 'v1' || !iv64 || !tag64 || body64 === undefined) throw new Error('invalid encrypted text');
   const decipher = createDecipheriv('aes-256-gcm', keyFrom(key), Buffer.from(iv64, 'base64url'));
   decipher.setAuthTag(Buffer.from(tag64, 'base64url'));
   return Buffer.concat([decipher.update(Buffer.from(body64, 'base64url')), decipher.final()]).toString('utf8');
