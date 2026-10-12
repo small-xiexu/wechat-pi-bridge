@@ -40,7 +40,7 @@ TG   → BotAPI → bridge → SQLite → Pi → 发回 TG
 Telegram 语音由 `app/telegram-transcribe.mjs` 在入队前用本地 whisper.cpp 转写；微信语音走微信服务端转写，两条通道机制不同。需要准备：
 
 - `ffmpeg` 必须在 `PATH` 中。
-- 从 whisper.cpp 源码编译出 `whisper-cli`，放到 `~/workspace/tools/whisper.cpp/build/bin/whisper-cli`；也可用 `WB_WHISPER_BIN` 指定路径。
+- 从 whisper.cpp 源码编译出 `whisper-cli`（务必带 `-DGGML_NATIVE=OFF` 便携模式编译，否则云 VM 换宿主机后会因非法指令崩溃），放到 `~/workspace/tools/whisper.cpp/build/bin/whisper-cli`；也可用 `WB_WHISPER_BIN` 指定路径。
 - 下载 `ggml-base-q5_1.bin`（约 60 MB），放到仓库外，或放在项目的 `models/whisper/` 目录（模型二进制不会提交）；也可用 `WB_WHISPER_MODEL` 指定路径。
 
 转写在消息入队前执行，单并发运行；仅在 `MemAvailable` ≥ 300 MB 时启动（可用 `WB_ASR_MIN_AVAILABLE_MB` 调整），语音上限为 120 秒。转写失败会自动降级为文字占位，不丢消息；结果通过 sidecar 文本缓存，避免同一语音重复转写。

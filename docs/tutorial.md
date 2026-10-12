@@ -213,7 +213,7 @@ Telegram 语音由桥在入队前使用本地 whisper.cpp 转写，模块为 `ap
 
 ### 3.6 Telegram 语音转写依赖
 
-Telegram 语音由 `app/telegram-transcribe.mjs` 在入队前用本地 whisper.cpp 转写。需要 `ffmpeg` 在 `PATH` 中；从 whisper.cpp 源码编译出 `whisper-cli`，放到 `~/workspace/tools/whisper.cpp/build/bin/whisper-cli`，或用 `WB_WHISPER_BIN` 指定。将约 60 MB 的 `ggml-base-q5_1.bin` 放到仓库外，或项目内的 `models/whisper/` 目录（不要提交模型二进制），或用 `WB_WHISPER_MODEL` 指定。
+Telegram 语音由 `app/telegram-transcribe.mjs` 在入队前用本地 whisper.cpp 转写。需要 `ffmpeg` 在 `PATH` 中；从 whisper.cpp 源码编译出 `whisper-cli`，放到 `~/workspace/tools/whisper.cpp/build/bin/whisper-cli`，或用 `WB_WHISPER_BIN` 指定。**编译时务必带 `-DGGML_NATIVE=OFF`（便携模式）**：默认的原生指令优化会把编译机的 CPU 指令集刻进二进制，云 VM 换宿主机后可能直接以 Illegal instruction（SIGILL）崩溃、语音转写全滅且日志里只留一句 Command failed；便携版略慢但不挑机器。将约 60 MB 的 `ggml-base-q5_1.bin` 放到仓库外，或项目内的 `models/whisper/` 目录（不要提交模型二进制），或用 `WB_WHISPER_MODEL` 指定。
 
 转写单并发执行，只有 `MemAvailable` ≥ 300 MB 才会启动（`WB_ASR_MIN_AVAILABLE_MB` 可调），语音上限 120 秒。失败会自动降级为文字占位，不丢消息；转写结果用 sidecar 缓存，避免重复转写。
 
