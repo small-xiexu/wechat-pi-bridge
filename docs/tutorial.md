@@ -1,6 +1,6 @@
 # Muse 负责托付、Pi 负责干活：我把微信和 TG 外包给了 AI
 
-ChatGPT 适合查询，Muse 适合托付——事情交出去，不必全程盯着。我把这句话落到了实处：让 Muse 做架构师和指挥官，把微信和 Telegram 的日常聊天全部托付给 Pi。现在我在微信/TG 里直接跟 AI 助手聊天：发文字秒回，发照片它能看懂，发微信语音自动转文字，还能按要求生图。本文记录这套系统的完整搭建过程，全部代码已开源，照着做就能复刻。
+ChatGPT 适合查询，Muse 适合托付——事情交出去，不必全程盯着。我把这句话落到了实处：让 Muse 做架构师和指挥官，把微信和 Telegram 的日常聊天全部托付给 Pi。现在我在微信/TG 里直接跟 AI 助手聊天：发文字秒回，发照片它能看懂，发微信或 Telegram 语音自动转文字，还能按要求生图。本文记录这套系统的完整搭建过程，全部代码已开源，照着做就能复刻。
 
 ---
 
@@ -20,7 +20,7 @@ ChatGPT 适合查询，Muse 适合托付——事情交出去，不必全程盯�
 - **微信**：使用一个微信小号与 Pi 聊天。发送文字后，通常约 10～20 秒收到回复；发送照片后，Pi 可以理解图片内容。
 - **Telegram**：使用专属 bot（`@你的_pi_bot`）与 Pi 聊天，也可以让 Pi 生成图片并发送回来。
 - **记忆**：微信和 Telegram 使用独立的会话记忆，互不干扰。发送“新会话”即可清空当前会话。
-- **微信语音**：微信语音消息可以使用微信服务端提供的转写文本；本文不覆盖 Telegram 语音转写。
+- **语音转写**：微信语音走微信服务端转写；Telegram 语音由桥在本地用 whisper.cpp 转写，两条通道机制不同。
 - **自愈**：在本文使用的云 VM 环境中观察到周期性重置。Muse 设计并部署看门狗机制后，服务通常可以在 5 分钟内自动恢复，无需手动处理。
 
 ![第一章配图](images/chapter-01.png)
@@ -209,9 +209,15 @@ file vendor/wx-bot/wx-bot
 4. 获取自己的 Telegram user ID。
 5. 将 token 和 user ID 写入 `config/telegram.json`。
 
-Telegram 语音在本文方案中没有覆盖验证；不要把微信语音转写的结论直接扩展到 Telegram。
+Telegram 语音由桥在入队前使用本地 whisper.cpp 转写，模块为 `app/telegram-transcribe.mjs`；微信语音走微信服务端转写，两条通道机制不同。Telegram 语音的依赖和降级行为见 3.6 节。
 
-### 3.6 准备微信小号
+### 3.6 Telegram 语音转写依赖
+
+Telegram 语音由 `app/telegram-transcribe.mjs` 在入队前用本地 whisper.cpp 转写。需要 `ffmpeg` 在 `PATH` 中；从 whisper.cpp 源码编译出 `whisper-cli`，放到 `~/workspace/tools/whisper.cpp/build/bin/whisper-cli`，或用 `WB_WHISPER_BIN` 指定。将约 60 MB 的 `ggml-base-q5_1.bin` 放到仓库外，或项目内的 `models/whisper/` 目录（不要提交模型二进制），或用 `WB_WHISPER_MODEL` 指定。
+
+转写单并发执行，只有 `MemAvailable` ≥ 300 MB 才会启动（`WB_ASR_MIN_AVAILABLE_MB` 可调），语音上限 120 秒。失败会自动降级为文字占位，不丢消息；转写结果用 sidecar 缓存，避免重复转写。
+
+### 3.7 准备微信小号
 
 准备一个微信小号，不要使用大号，用于通过社区 wx-bot 登录微信侧 iLink 接入。
 
@@ -266,6 +272,10 @@ sudo chown __USER__:__USER__ /home/__USER__/.pi/agent/.sub2api_key
             "text",
             "image"
           ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
           "contextWindow": 200000,
           "maxTokens": 32768
         }
@@ -283,6 +293,10 @@ sudo chown __USER__:__USER__ /home/__USER__/.pi/agent/.sub2api_key
             "text",
             "image"
           ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
           "output": [
             "image"
           ]
@@ -294,6 +308,10 @@ sudo chown __USER__:__USER__ /home/__USER__/.pi/agent/.sub2api_key
             "text",
             "image"
           ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
           "output": [
             "image"
           ]
@@ -305,6 +323,10 @@ sudo chown __USER__:__USER__ /home/__USER__/.pi/agent/.sub2api_key
             "text",
             "image"
           ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
           "output": [
             "image"
           ]
@@ -316,6 +338,10 @@ sudo chown __USER__:__USER__ /home/__USER__/.pi/agent/.sub2api_key
             "text",
             "image"
           ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
           "output": [
             "image"
           ]
@@ -327,6 +353,10 @@ sudo chown __USER__:__USER__ /home/__USER__/.pi/agent/.sub2api_key
             "text",
             "image"
           ],
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh"
+          },
           "output": [
             "image"
           ]
@@ -337,7 +367,7 @@ sudo chown __USER__:__USER__ /home/__USER__/.pi/agent/.sub2api_key
 }
 ```
 
-> 不同 Pi 版本对图片 provider 的注册方式可能不同。本文使用的图片 provider 还需要通过 Pi extension 注册；上面的 `sub2api-img` 部分用于完整表达图片模型和输入输出能力，实际运行时请同时安装项目配套的 `sub2api-images` provider extension。
+> **必须保留这些字段：** `models.json` 中每个模型都要声明 `"input": ["text", "image"]`、`"reasoning": true` 和 `"thinkingLevelMap": {"xhigh": "xhigh"}`。否则 `xhigh` 会静默不生效（Pi 不会发送 `reasoning_effort`），图片也会被当作纯文本丢弃。不同 Pi 版本对图片 provider 的注册方式可能不同。本文使用的图片 provider 还需要通过 Pi extension 注册；上面的 `sub2api-img` 部分用于完整表达图片模型和输入输出能力，实际运行时请同时安装项目配套的 `sub2api-images` provider extension。
 
 校验 JSON：
 
@@ -842,9 +872,9 @@ MemoryMax=256M
 WantedBy=multi-user.target
 ```
 
-### 6.6 微信语音消息
+### 6.6 语音消息
 
-本文只覆盖**微信通道**的语音转写能力，Telegram 语音未覆盖验证。
+两条通道的语音机制不同：Telegram 由 `app/telegram-transcribe.mjs` 在本地用 whisper.cpp 转写，微信由微信服务端转写。Telegram 的安装、内存门槛、时长上限和失败降级见 3.6 节。
 
 微信服务端会将转写内容放在：
 
@@ -861,7 +891,7 @@ const body = [
 ].filter(Boolean).join('\n');
 ```
 
-不需要额外安装 Whisper 或本地 ASR。
+微信通道不需要额外安装 Whisper 或本地 ASR；Telegram 通道需要按 3.6 节准备 whisper.cpp 和模型。
 
 ---
 
@@ -882,6 +912,8 @@ const body = [
 - `wechat-bridge.service`
 - `telegram-bridge.service`
 - `wx-bot-pi.service`
+
+会话本身也需要体积治理：Pi 会话里的图片会在每轮对话被重发并被模型重看，图片积累后请求会膨胀到被中转以 503 拒绝；实测 24 MB 请求带着 5 张图，约 38 秒后返回 503。本桥每轮结束后把旧轮次图片在会话文件中降清为 512px 缩略图，最新一轮保留原图，Pi 仍能认出图片内容；会话文件超过 10 MB 自动轮换新会话，旧文件留档。聊天里发送“新会话”也可以手动轮换。
 
 ### 7.2 验证恢复脚本
 
@@ -1060,7 +1092,7 @@ sudo journalctl -u telegram-bridge.service -n 100 --no-pager
 - [ ] 手动终止服务，等待最多 5 分钟，确认看门狗将其重新拉起。
 - [ ] 查看 SQLite 和日志，确认没有重复消费同一条消息。
 
-本文只验证微信语音转写；不要将 Telegram 语音列入已验证功能。
+Telegram 语音转写按 3.6 节准备依赖后纳入验收；微信语音仍由微信服务端转写。
 
 ---
 
@@ -1132,4 +1164,4 @@ CxxVen 的方案是在 X 上获得 4 万浏览、并有多人在评论区反馈�
 
 *教程版本：2026-10-11 · 基于真实跑通的系统整理*  
 *实测限制：微信小号、一对一私聊、不能主动发起对话；iLink 返回 `-14` 时需要重新扫码*  
-*事实边界：本文仅覆盖微信语音转写；Telegram 语音未覆盖验证。VM 重置描述为“在本文使用的云 VM 环境中观察到”。*
+*事实边界：微信语音由微信服务端转写，Telegram 语音由本地 whisper.cpp 转写；两条通道机制不同。VM 重置描述为“在本文使用的云 VM 环境中观察到”。*

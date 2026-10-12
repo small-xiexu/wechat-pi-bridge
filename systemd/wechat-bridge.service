@@ -25,9 +25,10 @@ User=root
 Group=root
 WorkingDirectory=/home/hatch/workspace/wechat-pi-bridge
 Environment=WB_HOME=/home/hatch/workspace/wechat-pi-bridge
-Environment=HOME=/var/lib/wechat-pi-bridge/pi-home
-Environment=WB_PI_HOME=/var/lib/wechat-pi-bridge/pi-home
-Environment=WB_PI_SESSION_DIR=/var/lib/wechat-pi-bridge/pi-home/sessions
+Environment=HOME=/home/__USER__
+# Pi home 必须放在能跨平台重置保留的持久目录，不要放 /var/lib 等临时区（重置会丢扩展与会话）。
+Environment=WB_PI_HOME=/home/__USER__
+Environment=WB_PI_SESSION_DIR=/home/__USER__/.pi/agent/sessions
 Environment=NODE_USE_ENV_PROXY=1
 Environment=NODE_EXTRA_CA_CERTS=/run/hatch/egress-tls/ca-bundle.pem
 Environment=SSL_CERT_FILE=/run/hatch/egress-tls/ca-bundle.pem
@@ -42,7 +43,7 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateDevices=yes
-ReadWritePaths=/home/hatch/workspace/wechat-pi-bridge/state /home/hatch/workspace/wechat-pi-bridge/logs /home/hatch/workspace/wechat-pi-bridge/sandbox /var/lib/wechat-pi-bridge/pi-home /var/lib/wechat-pi-bridge/pi-home/sessions
+ReadWritePaths=/home/hatch/workspace/wechat-pi-bridge/state /home/hatch/workspace/wechat-pi-bridge/logs /home/hatch/workspace/wechat-pi-bridge/sandbox /home/__USER__/.pi/agent /home/__USER__/.pi/agent/sessions
 
 [Install]
 WantedBy=multi-user.target

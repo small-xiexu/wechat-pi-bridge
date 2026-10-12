@@ -9,9 +9,10 @@
 - **微信通道**：基于社区 wx-bot 的第三方 iLink 协议接入，文字/图片/语音双向
 - **Telegram 通道**：Bot API，文字/图片双向
 - **Pi 集成**：持久会话、skills 自主调用、私有模型
-- **语音转写**：微信语音自动转文字
+- **语音转写**：微信语音由微信服务端转写；Telegram 语音由桥在本地用 whisper.cpp 转写
 - **AI 生图**：Pi 生成图片自动发回
 - **会话隔离**：微信/TG 记忆独立，"新会话"一键清空
+- **会话治理**：历史轮次图片自动降为 512px 缩略图，最新一轮保留原图；会话文件超过 10MB 自动轮换，旧文件留档。图片会在每轮重发并被模型重看，实测 24MB 请求带 5 张图会在约 38 秒后被中转以 503 拒绝。
 - **看门狗**：云 VM 重置后 5 分钟内自动恢复
 
 ## 架构
@@ -34,7 +35,17 @@ TG   → BotAPI → bridge → SQLite → Pi → 发回 TG
 - 微信小号（不要用大号）
 - Telegram bot（@BotFather 创建）
 
-### 2. 安装 wx-bot
+### 2. 准备 Telegram 语音转写依赖
+
+Telegram 语音由 `app/telegram-transcribe.mjs` 在入队前用本地 whisper.cpp 转写；微信语音走微信服务端转写，两条通道机制不同。需要准备：
+
+- `ffmpeg` 必须在 `PATH` 中。
+- 从 whisper.cpp 源码编译出 `whisper-cli`，放到 `~/workspace/tools/whisper.cpp/build/bin/whisper-cli`；也可用 `WB_WHISPER_BIN` 指定路径。
+- 下载 `ggml-base-q5_1.bin`（约 60 MB），放到仓库外，或放在项目的 `models/whisper/` 目录（模型二进制不会提交）；也可用 `WB_WHISPER_MODEL` 指定路径。
+
+转写在消息入队前执行，单并发运行；仅在 `MemAvailable` ≥ 300 MB 时启动（可用 `WB_ASR_MIN_AVAILABLE_MB` 调整），语音上限为 120 秒。转写失败会自动降级为文字占位，不丢消息；结果通过 sidecar 文本缓存，避免同一语音重复转写。
+
+### 3. 安装 wx-bot
 
 ```bash
 # 按 vendor/wx-bot/manifest.json 固定版本下载并校验 SHA256 后安装
@@ -42,7 +53,7 @@ TG   → BotAPI → bridge → SQLite → Pi → 发回 TG
 # 可用 ./bin/check-deps 检查依赖是否齐全
 ```
 
-### 3. 配置
+### 4. 配置
 
 ```bash
 cp config/telegram.example.json config/telegram.json
@@ -51,20 +62,20 @@ cp config/bindings.example.json config/bindings.json
 # 填入你的 token 和 ID（这些文件已在 .gitignore 中，不会提交）
 ```
 
-### 4. 微信扫码登录
+### 5. 微信扫码登录
 
 ```bash
 ./bin/wechat-bridge login    # 终端显示二维码，微信扫码
 ```
 
-### 5. 启动服务
+### 6. 启动服务
 
 ```bash
 sudo cp systemd/*.service /etc/systemd/system/
 sudo systemctl enable --now telegram-bridge wechat-bridge wx-bot-pi
 ```
 
-### 6. 看门狗（推荐）
+### 7. 看门狗（推荐）
 
 ```bash
 # 每 5 分钟检查服务，挂了自动拉起
@@ -79,12 +90,12 @@ sudo ./bin/ensure-services
 | `config/telegram.json` | TG bot token、白名单 user ID |
 | `config/wx-bot-pi.json` | wx-bot 配置 |
 | `config/bindings.json` | 通道绑定配置 |
-| `~/.pi/agent/models.json` | Pi 模型配置（**必须**声明 `"input": ["text", "image"]` 才能看图） |
+| `~/.pi/agent/models.json` | Pi 模型配置（每个模型**必须**声明 `"input": ["text", "image"]`、`"reasoning": true`、`"thinkingLevelMap": {"xhigh": "xhigh"}`；否则图片会丢弃且 xhigh 静默不生效） |
 
 ## 常见问题
 
-**Pi 看不见图？**
-检查 `~/.pi/agent/models.json` 是否声明了 `"input": ["text", "image"]`。不声明 Pi 会静默丢图。
+**Pi 看不见图或 xhigh 不生效？**
+检查 `~/.pi/agent/models.json` 中每个模型是否声明了 `"input": ["text", "image"]`、`"reasoning": true` 和 `"thinkingLevelMap": {"xhigh": "xhigh"}`。缺少 `input` 会让图片被当作纯文本丢弃；缺少后两个字段则 Pi 不会发送 `reasoning_effort`，xhigh 会静默不生效。
 
 **服务突然不回消息？**
 云 VM 可能被平台重置。看门狗会在 5 分钟内自动恢复。
