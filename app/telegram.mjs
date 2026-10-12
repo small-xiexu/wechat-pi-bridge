@@ -131,6 +131,10 @@ export function extractTelegramMessage(update) {
     kind: text ? 'text' : 'media',
     photo_file_id: Array.isArray(msg.photo) && msg.photo.length > 0
       ? msg.photo[msg.photo.length - 1].file_id : null,
+    voice_file_id: msg.voice && typeof msg.voice.file_id === 'string'
+      ? msg.voice.file_id : null,
+    voice_duration: msg.voice && typeof msg.voice.duration === 'number'
+      ? msg.voice.duration : null,
     media_placeholder: hasMedia && !text
       ? (msg.voice || msg.audio ? '[语音消息：Telegram 语音暂无转写，请改发文字]'
         : msg.video ? '[视频]'

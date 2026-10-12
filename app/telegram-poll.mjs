@@ -12,8 +12,9 @@
 // Identity: Telegram DM only (chat.type === 'private'); sender must be in
 // allowed_user_ids (fail-closed). Dedup by (binding, message_id); update
 // offset persisted in poll_state (loss is safe: re-fetch is idempotent).
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { TelegramApi, TelegramError, extractTelegramMessage } from './telegram.mjs';
+import { transcribeVoice } from './telegram-transcribe.mjs';
 import { openDb, insertInboxEvent, getPollOffset, setPollOffset, audit, nowIso, payloadHash } from './db.mjs';
 import { addToBatch } from './debounce.mjs';
 
@@ -101,7 +102,43 @@ export async function handleUpdate(ctx, u) {
     audit(db, { binding: bot.binding, eventType: 'tg.identity_rejected', details: { update_id: u.update_id, sender_id: m.sender_id || '?' } });
     return 'rejected-identity';
   }
-  const text = m.media_placeholder || m.text;
+  // Voice: download + local transcription (after identity checks, before
+  // enqueue). Any failure degrades to the placeholder text; never throws,
+  // so the poll offset semantics stay safe.
+  let voiceText = null;
+  if (api && m.voice_file_id) {
+    const mediaDir = `${process.env.WB_HOME || '/home/hatch/workspace/wechat-bridge'}/state/telegram-media`;
+    const voicePath = `${mediaDir}/tg-voice-${m.message_id}.ogg`;
+    const sidecar = `${voicePath}.txt`;
+    try {
+      if (existsSync(sidecar)) {
+        voiceText = readFileSync(sidecar, 'utf8').trim() || null;
+      } else {
+        if (!existsSync(voicePath)) {
+          const { mkdirSync } = await import('node:fs');
+          mkdirSync(mediaDir, { recursive: true });
+          writeFileSync(voicePath, await api.downloadFile(m.voice_file_id));
+        }
+        if (m.voice_duration && m.voice_duration > 120) {
+          audit(db, { binding: bot.binding, eventType: 'tg.voice_too_long', details: { update_id: u.update_id, duration: m.voice_duration } });
+        } else {
+          const r = await transcribeVoice(voicePath);
+          if (r.ok) {
+            voiceText = r.text;
+            try { writeFileSync(sidecar, r.text); } catch {}
+            audit(db, { binding: bot.binding, eventType: 'tg.voice_transcribed', details: { update_id: u.update_id, chars: r.text.length } });
+          } else {
+            audit(db, { binding: bot.binding, eventType: 'tg.voice_transcribe_failed', details: { update_id: u.update_id, reason: r.reason } });
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[tg-poll:${bot.binding}] voice handling failed: ${e.message}`);
+      audit(db, { binding: bot.binding, eventType: 'tg.voice_transcribe_failed', details: { update_id: u.update_id, reason: String(e.message).slice(0, 120) } });
+    }
+  }
+  const text = voiceText ? `[语音转写]${voiceText}` : (m.media_placeholder || m.text);
+  const kind = voiceText ? 'transcript' : m.kind;
   const payload_hash = payloadHash(JSON.stringify([`tg:${u.update_id}`, m.message_id, text]));
 
   const ins = insertInboxEvent(db, {
@@ -113,7 +150,7 @@ export async function handleUpdate(ctx, u) {
     sender_id: m.sender_id,
     recipient_id: m.recipient_id,
     chat_kind: 'self_chat',
-    kind: m.kind,
+    kind,
     text,
     media_file_id: mediaPath,
     media_files: mediaFiles,
