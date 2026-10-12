@@ -87,6 +87,32 @@ function sessionIdFor(binding, principal) {
   return epoch > 0 ? `${key}-s${epoch}` : key;
 }
 
+/** Session size guard: generated images land in Pi's session history as
+ *  base64, and a bloated session file (25MB observed 2026-10-12) makes every
+ *  subsequent Pi request huge enough that the relay rejects it with 503.
+ *  When the current session file exceeds the cap, rotate to a fresh epoch
+ *  (the old file stays on disk) and continue with the new session. */
+const SESSION_MAX_BYTES = Number(process.env.WB_PI_SESSION_MAX_MB || 5) * 1024 * 1024;
+function sessionFileSizeBytes(sessionDir, sessionId) {
+  try {
+    const f = readdirSync(sessionDir).find((n) => n.endsWith(`_${sessionId}.jsonl`));
+    return f ? statSync(join(sessionDir, f)).size : 0;
+  } catch { return 0; }
+}
+export function guardedSessionId(binding, principal, sessionDir) {
+  let sid = sessionIdFor(binding, principal);
+  const dir = sessionDir
+    || `${process.env.WB_PI_HOME || '/home/hatch'}/.pi/agent/sessions`;
+  const size = sessionFileSizeBytes(dir, sid);
+  if (size > SESSION_MAX_BYTES) {
+    bumpSessionEpoch(`${binding}-${principal}`);
+    const fresh = sessionIdFor(binding, principal);
+    console.log(`[dispatch] session ${sid} is ${(size / 1048576).toFixed(1)}MB (> cap); rotated to ${fresh}`);
+    sid = fresh;
+  }
+  return sid;
+}
+
 /** Check if message is a "new session" command. */
 function isNewSessionCmd(text) {
   const t = String(text || '').trim().toLowerCase();
@@ -159,7 +185,7 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
         model: cfg?.pi_model || 'sub2api/gpt-6.1-sol',
         workdir,
         timeoutMs: cfg?.pi_timeout_ms || 600_000,
-        sessionId: sessionIdFor(b.binding, b.authorized_principal),
+        sessionId: guardedSessionId(b.binding, b.authorized_principal, cfg?.pi_session_dir || undefined),
         sessionDir: cfg?.pi_session_dir || undefined,
         images: uniqImages,
       });
