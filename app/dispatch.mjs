@@ -92,7 +92,7 @@ function sessionIdFor(binding, principal) {
  *  subsequent Pi request huge enough that the relay rejects it with 503.
  *  When the current session file exceeds the cap, rotate to a fresh epoch
  *  (the old file stays on disk) and continue with the new session. */
-const SESSION_MAX_BYTES = Number(process.env.WB_PI_SESSION_MAX_MB || 5) * 1024 * 1024;
+const SESSION_MAX_BYTES = Number(process.env.WB_PI_SESSION_MAX_MB || 10) * 1024 * 1024;
 function sessionFileSizeBytes(sessionDir, sessionId) {
   try {
     const f = readdirSync(sessionDir).find((n) => n.endsWith(`_${sessionId}.jsonl`));
