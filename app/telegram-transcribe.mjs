@@ -15,7 +15,13 @@ const WHISPER_BIN = process.env.WB_WHISPER_BIN
   || '/home/hatch/workspace/tools/whisper.cpp/build/bin/whisper-cli';
 const WHISPER_MODEL = process.env.WB_WHISPER_MODEL
   || '/home/hatch/workspace/wechat-bridge/models/whisper/ggml-base-q5_1.bin';
-const MIN_AVAILABLE_MB = Number(process.env.WB_ASR_MIN_AVAILABLE_MB || 300);
+const MIN_AVAILABLE_MB = Number(process.env.WB_ASR_MIN_AVAILABLE_MB || 220);
+const LOWMEM_RETRIES = 3;        // memory pressure is transient (Pi runs come and go)
+const LOWMEM_WAIT_MS = 20_000;   // wait between low-memory rechecks
+const WHISPER_RETRIES = 2;       // one retry on transient whisper-cli failure
+const WHISPER_RETRY_WAIT_MS = 2_000;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const TIMEOUT_MS = Number(process.env.WB_ASR_TIMEOUT_MS || 120_000);
 
 function memAvailableMb() {
@@ -39,14 +45,26 @@ async function doTranscribe(oggPath) {
   if (!existsSync(WHISPER_BIN) || !existsSync(WHISPER_MODEL)) {
     return { ok: false, reason: 'asr-not-installed' };
   }
-  const avail = memAvailableMb();
+  let avail = memAvailableMb();
+  for (let i = 0; i < LOWMEM_RETRIES && avail < MIN_AVAILABLE_MB; i++) {
+    await sleep(LOWMEM_WAIT_MS);
+    avail = memAvailableMb();
+  }
   if (avail < MIN_AVAILABLE_MB) return { ok: false, reason: `low-memory:${avail}MB` };
   const wavPath = oggPath.replace(/\.ogg$/, '.asr.wav');
   const outBase = oggPath.replace(/\.ogg$/, '.asr');
   try {
     await run('ffmpeg', ['-y', '-v', 'error', '-i', oggPath, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', wavPath], 30_000);
-    await run(WHISPER_BIN, ['-m', WHISPER_MODEL, '-f', wavPath, '-l', 'zh', '-t', '2',
-      '--no-timestamps', '-otxt', '-of', outBase], TIMEOUT_MS);
+    let lastErr = null;
+    for (let i = 0; i < WHISPER_RETRIES; i++) {
+      try {
+        await run(WHISPER_BIN, ['-m', WHISPER_MODEL, '-f', wavPath, '-l', 'zh', '-t', '2',
+          '--no-timestamps', '-otxt', '-of', outBase], TIMEOUT_MS);
+        lastErr = null;
+        break;
+      } catch (e) { lastErr = e; if (i + 1 < WHISPER_RETRIES) await sleep(WHISPER_RETRY_WAIT_MS); }
+    }
+    if (lastErr) throw lastErr;
     const text = readFileSync(`${outBase}.txt`, 'utf8').replace(/\s+/g, ' ').trim();
     if (!text) return { ok: false, reason: 'empty-transcript' };
     return { ok: true, text };
