@@ -77,10 +77,13 @@ function shrinkParts(node, stats) {
 
 /**
  * Downscale big images in all exchanges except the most recent one.
+ * With opts.includeLastExchange, shrink every exchange including the latest
+ * (used to rescue a session that ballooned mid-turn and failed: its latest
+ * exchange never completed, so nothing needs the full-size originals).
  * Returns { file, replaced, savedBytes, beforeBytes, afterBytes } or null
  * when there is nothing to do. Never throws.
  */
-export function shrinkSessionImages(sessionDir, sessionId) {
+export function shrinkSessionImages(sessionDir, sessionId, opts = {}) {
   try {
     const file = findSessionFile(sessionDir, sessionId);
     if (!file) return null;
@@ -89,13 +92,14 @@ export function shrinkSessionImages(sessionDir, sessionId) {
     const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } });
     let lastUser = -1;
     entries.forEach((e, i) => { if (e?.message?.role === 'user') lastUser = i; });
-    if (lastUser <= 0) return null; // only the current exchange exists
+    const cutoff = opts.includeLastExchange ? entries.length : lastUser;
+    if (cutoff <= 0) return null; // only the current exchange exists
     const stats = { replaced: 0, savedBytes: 0 };
-    for (let i = 0; i < lastUser; i++) {
+    for (let i = 0; i < cutoff; i++) {
       if (entries[i]) shrinkParts(entries[i], stats);
     }
     if (!stats.replaced) return null;
-    const out = entries.map((e, i) => (e && i < lastUser ? JSON.stringify(e) : lines[i])).join('\n');
+    const out = entries.map((e, i) => (e && i < cutoff ? JSON.stringify(e) : lines[i])).join('\n');
     const tmp = `${file}.shrink-${process.pid}`;
     writeFileSync(tmp, out);
     renameSync(tmp, file);

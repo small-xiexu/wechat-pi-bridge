@@ -104,11 +104,24 @@ export function guardedSessionId(binding, principal, sessionDir) {
   let sid = sessionIdFor(binding, principal);
   const dir = sessionDir
     || `${process.env.WB_PI_HOME || '/home/hatch'}/.pi/agent/sessions`;
-  const size = sessionFileSizeBytes(dir, sid);
+  let size = sessionFileSizeBytes(dir, sid);
+  if (size > SESSION_MAX_BYTES) {
+    // First resort: thin historical images in place. Rotating alone is not
+    // enough — a single image-edit turn can balloon a fresh session mid-turn
+    // (observed 2026-10-12: WeChat pi-sean-s1 hit 14.6MB in one turn), and a
+    // rotated retry would replay the same turn and balloon again.
+    try {
+      const shrunk = shrinkSessionImages(dir, sid, { includeLastExchange: true });
+      if (shrunk?.replaced) {
+        console.log(`[dispatch] session ${sid} over cap; shrunk ${shrunk.replaced} images in place (saved ${(shrunk.savedBytes / 1048576).toFixed(1)}MB)`);
+        size = sessionFileSizeBytes(dir, sid);
+      }
+    } catch { /* best effort */ }
+  }
   if (size > SESSION_MAX_BYTES) {
     bumpSessionEpoch(`${binding}-${principal}`);
     const fresh = sessionIdFor(binding, principal);
-    console.log(`[dispatch] session ${sid} is ${(size / 1048576).toFixed(1)}MB (> cap); rotated to ${fresh}`);
+    console.log(`[dispatch] session ${sid} is ${(size / 1048576).toFixed(1)}MB (> cap even after shrink); rotated to ${fresh}`);
     sid = fresh;
   }
   return sid;
@@ -193,7 +206,15 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
       });
       if (!r.ok) throw new Error(`pi failed code=${r.code} signal=${r.signal} timedOut=${r.timedOut} stderr=${r.stderr.slice(0, 300)}`);
       const newImgs = listOutboundMedia(workdir).filter(f => !beforeImgs.includes(f));
-      const plain = markdownToPlain(r.stdout);
+      // Images are delivered by the bridge itself; Pi's coding-agent habit of
+      // appending "下载图片 (sandbox://...)" file links is meaningless to chat
+      // users — strip those patterns from the reply text.
+      const plain = markdownToPlain(r.stdout)
+        .replace(/\[?下载图片\]?\s*\(sandbox:\/\/[^)]*\)/g, '')
+        .replace(/sandbox:\/\/\S+/g, '')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
       // Send Pi-generated images (wechat via wx-bot, telegram via sendPhoto)
       if (newImgs.length > 0) {
         const ch = cfg?.channel || 'wechat';
@@ -243,6 +264,14 @@ export async function dispatchOnce({ dbPath, bindings, drySend = false, telegram
       } catch (e) { console.error(`[dispatch] session image shrink failed: ${e.message}`); }
       results.batches.push({ id: b.id, status: 'done', parts: parts.length });
     } catch (e) {
+      // If Pi died mid-turn (e.g. the session ballooned during an image edit),
+      // thin the session now so the retry resumes light instead of rotating
+      // into a fresh session that balloons the same way.
+      try {
+        const sidNow = sessionIdFor(b.binding, b.authorized_principal);
+        const shrunk = shrinkSessionImages(cfg?.pi_session_dir || '/home/hatch/.pi/agent/sessions', sidNow, { includeLastExchange: true });
+        if (shrunk?.replaced) console.log(`[dispatch] post-failure shrink of ${sidNow}: ${shrunk.replaced} images, saved ${(shrunk.savedBytes / 1048576).toFixed(1)}MB`);
+      } catch { /* best effort */ }
       const attempt = (b.attempt || 0) + 1;
       const wait = backoffMs(Math.min(attempt, 3));
       const next = new Date(Date.now() + wait).toISOString();
