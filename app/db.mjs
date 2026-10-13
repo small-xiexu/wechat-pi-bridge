@@ -342,6 +342,11 @@ export function attachToBatch(db, batchId, inboxId) {
     .run(batchId, nowIso(), inboxId);
 }
 
+/** Decrypt one inbox event's stored text (db.mjs owns the per-db key). */
+export function inboxPlainText(db, encText) {
+  return decryptText(encText, dbKey(db));
+}
+
 /** Batches whose debounce window has passed and are due for processing. */
 export function dueBatches(db, now) {
   return db.prepare(`SELECT * FROM batches WHERE status = 'pending'

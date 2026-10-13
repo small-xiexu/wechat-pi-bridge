@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { openDb, insertInboxEvent, audit, nowIso, payloadHash } from './db.mjs';
 import { loadBindingsConfig, checkBearer, checkSignature, checkIdentity, AuthError } from './auth.mjs';
 import { normalizeEvent, SchemaError } from './normalize.mjs';
-import { addToBatch } from './debounce.mjs';
+import { addToBatch, sweepQueuedOrphans } from './debounce.mjs';
 import { readAuthState } from './wx-auth-state.mjs';
 
 const BRIDGE_HOME = process.env.WB_HOME || '/home/hatch/workspace/wechat-bridge';
@@ -169,8 +169,17 @@ server.listen(Number(port), '127.0.0.1', () => {
 // In-process dispatcher tick (separate systemd unit runs dispatch.mjs loop in prod;
 // the in-process tick keeps single-process dev/test simple).
 const TICK_MS = 2000;
+const ORPHAN_SWEEP_MS = 30_000;
+let lastOrphanSweep = 0;
 setInterval(async () => {
   try {
+    if (Date.now() - lastOrphanSweep >= ORPHAN_SWEEP_MS) {
+      lastOrphanSweep = Date.now();
+      try {
+        const n = sweepQueuedOrphans(db, { bindings });
+        if (n > 0) console.log(`[orphan-sweep] re-batched ${n} queued orphan event(s)`);
+      } catch (e) { console.error(`[orphan-sweep] ${e.message}`); }
+    }
     const { dispatchOnce } = await import('./dispatch.mjs');
     await dispatchOnce({ dbPath: DB_PATH, bindings });
   } catch (e) { console.error(`[dispatch-tick] ${e.message}`); }
