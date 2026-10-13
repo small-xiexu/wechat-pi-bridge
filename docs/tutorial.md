@@ -4,6 +4,8 @@ ChatGPT 适合查询，Muse 适合托付——事情交出去，不必全程盯�
 
 ---
 
+> **全网首发**：第一个讲透「Muse 负责架构运维、Pi 负责一线执行」分工模式的微信 / Telegram 双通道实战教程——全链路真机实测，代码全部开源。
+
 ## 1. 为什么是 Muse × Pi：效果展示
 
 这套系统的核心，不是让 Pi 独立完成一个项目，而是让 **Muse 做架构师和指挥官，Pi 做被派出去的执行者**：
@@ -27,6 +29,18 @@ ChatGPT 适合查询，Muse 适合托付——事情交出去，不必全程盯�
 
 - [微信通道演示（68 秒）](https://github.com/small-xiexu/wechat-pi-bridge/releases/download/demo-2026-10-13/wechat-demo.mp4)：微信小号与 Pi 对话——文字让 Pi 写秋天朋友圈文案、语音问天气。
 - [Telegram 通道演示（25 秒）](https://github.com/small-xiexu/wechat-pi-bridge/releases/download/demo-2026-10-13/tg-demo.mp4)：发语音让 Pi 生成潮汕英歌舞插画（本地 whisper 转写）、发猫照片问品种。
+
+**实测矩阵**（每一项均为真机实测，不是只跑了 demo）：
+
+| 能力 | 微信 | Telegram | 备注 |
+| --- | --- | --- | --- |
+| 文字对话 | ✅ | ✅ | |
+| 图片理解 | ✅ | ✅ | 发照片，Pi 能看懂内容 |
+| 图片发送 | ✅ | ✅ | 微信走 wx-bot，TG 走 sendPhoto |
+| 语音转写 | ✅ | ✅ | 微信走服务端转写；TG 本地 whisper.cpp 转写 |
+| AI 生图 | — | ✅ | 微信端暂未打通 |
+| 会话记忆 | ✅ 独立 | ✅ 独立 | 双通道互不干扰 |
+| 断线自愈 | ✅ | ✅ | 看门狗 5 分钟拉起，亲历多次 VM 重置 |
 
 ![第一章配图](images/chapter-01.png)
 
