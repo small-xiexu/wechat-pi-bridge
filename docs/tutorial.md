@@ -23,6 +23,11 @@ ChatGPT 适合查询，Muse 适合托付——事情交出去，不必全程盯�
 - **语音转写**：微信语音走微信服务端转写；Telegram 语音由桥在本地用 whisper.cpp 转写，两条通道机制不同。
 - **自愈**：在本文使用的云 VM 环境中观察到周期性重置。Muse 设计并部署看门狗机制后，服务通常可以在 5 分钟内自动恢复，无需手动处理。
 
+**演示视频**（真机录屏，2026-10-13）：
+
+- [微信通道演示（68 秒）](https://github.com/small-xiexu/wechat-pi-bridge/releases/download/demo-2026-10-13/wechat-demo.mp4)：微信小号与 Pi 对话——文字让 Pi 写秋天朋友圈文案、语音问天气。
+- [Telegram 通道演示（25 秒）](https://github.com/small-xiexu/wechat-pi-bridge/releases/download/demo-2026-10-13/tg-demo.mp4)：发语音让 Pi 生成潮汕英歌舞插画（本地 whisper 转写）、发猫照片问品种。
+
 ![第一章配图](images/chapter-01.png)
 
 ---
