@@ -93,6 +93,29 @@ export async function handleUpdate(ctx, u) {
       }
     };
     if (m.photo_file_id) await dl(m.photo_file_id, 'jpg', 'photo');
+    // Documents: download too (bot API getFile caps at 20MB). Pi receives the
+    // file via @file; without this it only ever saw the '[文件]' placeholder.
+    if (m.document_file_id) {
+      const MAX_DOC_BYTES = 20 * 1024 * 1024;
+      if (m.document_file_size && m.document_file_size > MAX_DOC_BYTES) {
+        console.error(`[tg-poll:${bot.binding}] document too large, skipped: ${m.document_file_name || '?'} (${m.document_file_size} bytes)`);
+      } else {
+        const rawName = typeof m.document_file_name === 'string' ? m.document_file_name : '';
+        const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'file';
+        const extMatch = safeName.match(/\.([a-zA-Z0-9]{1,10})$/);
+        const ext = extMatch ? extMatch[1].toLowerCase() : 'bin';
+        try {
+          mkdirSync(mediaDir, { recursive: true });
+          const buf = await api.downloadFile(m.document_file_id);
+          const p = `${mediaDir}/tg-${m.message_id}-${safeName}`;
+          writeFileSync(p, buf);
+          mediaFiles.push(p);
+          if (!mediaPath) mediaPath = p;
+        } catch (e) {
+          console.error(`[tg-poll:${bot.binding}] document download failed: ${e.message}`);
+        }
+      }
+    }
   }
   if (m.chat_type !== 'private') {
     audit(db, { binding: bot.binding, eventType: 'tg.non_private_ignored', details: { update_id: u.update_id, chat_type: m.chat_type } });

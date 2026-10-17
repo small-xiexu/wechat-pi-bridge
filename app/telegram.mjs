@@ -135,10 +135,16 @@ export function extractTelegramMessage(update) {
       ? msg.voice.file_id : null,
     voice_duration: msg.voice && typeof msg.voice.duration === 'number'
       ? msg.voice.duration : null,
+    document_file_id: msg.document && typeof msg.document.file_id === 'string'
+      ? msg.document.file_id : null,
+    document_file_name: msg.document && typeof msg.document.file_name === 'string'
+      ? msg.document.file_name : null,
+    document_file_size: msg.document && typeof msg.document.file_size === 'number'
+      ? msg.document.file_size : null,
     media_placeholder: hasMedia && !text
       ? (msg.voice || msg.audio ? '[语音消息：Telegram 语音暂无转写，请改发文字]'
         : msg.video ? '[视频]'
-        : msg.document ? '[文件]'
+        : msg.document ? `[文件${msg.document.file_name ? ': ' + msg.document.file_name : ''}]`
         : '[图片]')
       : null,
   };

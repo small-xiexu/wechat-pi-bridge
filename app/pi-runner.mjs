@@ -42,7 +42,9 @@ export function validateWorkdir(workdir) {
 
 export function isAllowedMediaPath(filePath, roots = []) {
   if (typeof filePath !== 'string' || !filePath.startsWith('/')) return false;
-  if (!/\.(?:png|jpe?g|webp|gif)$/i.test(filePath)) return false;
+  // Images (vision input) plus common document types (passed to Pi as @file).
+  // Outbound image detection (listOutboundMedia) uses its own regex and is unaffected.
+  if (!/\.(?:png|jpe?g|webp|gif|pdf|txt|md|markdown|json|csv|tsv|log|zip|docx?|xlsx?|pptx?|xml|ya?ml|js|mjs|ts|py|sh|sql|html?|css)$/i.test(filePath)) return false;
   try {
     const file = realpathSync(filePath);
     if (!statSync(file).isFile()) return false;
